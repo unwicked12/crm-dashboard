@@ -84,5 +84,6 @@
     "gh-pages": "^6.2.0",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2"
-  }
+  },
+  "homepage": "https://unwicked12.github.io/crm-dashboard"
 }
