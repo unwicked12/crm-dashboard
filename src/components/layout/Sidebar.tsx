@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -20,6 +20,10 @@ import {
   Assessment as ReportIcon,
   AdminPanelSettings as AdminIcon,
   Logout as LogoutIcon,
+  Assessment as AssessmentIcon,
+  MenuBook as MenuBookIcon,
+  LibraryBooks as LibraryBooksIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import logoImage from '../../logo.png';
@@ -42,16 +46,28 @@ interface NavItem {
 const navItems: NavItem[] = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
   { text: 'Activity', icon: <ActivityIcon />, path: '/activity' },
-  { text: 'Holiday Requests', icon: <HolidayIcon />, path: '/holiday-requests' },
-  { text: 'Agents', icon: <AgentsIcon />, path: '/agents' },
-  { text: 'Reports', icon: <ReportIcon />, path: '/reports' },
+  { text: 'Schedule', icon: <HolidayIcon />, path: '/schedule' },
+  { text: 'Knowledge Base', icon: <LibraryBooksIcon />, path: '/knowledge-base' },
   { 
     text: 'Admin Dashboard', 
     icon: <AdminIcon />, 
-    path: '/admin', 
+    path: '/admin',
     adminOnly: true,
-    visibleTo: (user) => user?.role === 'admin'
+    visibleTo: (user) => user.role === 'admin'
+  }
+];
+
+const adminMenuItems: NavItem[] = [
+  {
+    text: 'Rapports',
+    icon: <AssessmentIcon />,
+    path: '/admin/reports'
   },
+  {
+    text: 'User Management',
+    icon: <PersonIcon />,
+    path: '/admin/users'
+  }
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
@@ -95,6 +111,43 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
       {/* Navigation List */}
       <List sx={{ flex: 1, px: 2 }}>
         {filteredNavItems.map((item) => (
+          <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
+            <ListItemButton
+              onClick={() => navigate(item.path)}
+              selected={location.pathname === item.path}
+              sx={{
+                borderRadius: 1,
+                '&.Mui-selected': {
+                  backgroundColor: 'primary.main',
+                  color: 'primary.contrastText',
+                  '&:hover': {
+                    backgroundColor: 'primary.dark',
+                  },
+                  '& .MuiListItemIcon-root': {
+                    color: 'primary.contrastText',
+                  },
+                },
+              }}
+            >
+              <ListItemIcon
+                sx={{
+                  minWidth: 40,
+                  color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                }}
+              >
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText 
+                primary={item.text}
+                primaryTypographyProps={{
+                  fontSize: '0.875rem',
+                  fontWeight: location.pathname === item.path ? 600 : 400,
+                }}
+              />
+            </ListItemButton>
+          </ListItem>
+        ))}
+        {user?.role === 'admin' && adminMenuItems.map((item) => (
           <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
             <ListItemButton
               onClick={() => navigate(item.path)}

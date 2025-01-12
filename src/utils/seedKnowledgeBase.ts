@@ -1,6 +1,6 @@
-import { createArticle, KnowledgeBaseArticle } from '../services/knowledgeBase';
+import { knowledgeBaseService, KnowledgeBaseArticle } from '../services/knowledgeBaseService';
 
-const articles: KnowledgeBaseArticle[] = [
+const articles: Omit<KnowledgeBaseArticle, 'id' | 'createdAt' | 'updatedAt'>[] = [
   {
     title: "Traitement d'une association",
     content: "Demander le numéro SIREN : Utilisez-le pour télécharger l'\"Avis de situation SIRENE\" (équivalent de l'Extrait KBIS pour une association).\n\nDocuments requis : Un document mentionnant les rôles des personnes présentes dans l'association. Le client doit apparaître sur ce document avec un rôle précis (ex : président, responsable financier).",
@@ -72,7 +72,7 @@ const articles: KnowledgeBaseArticle[] = [
 export const seedKnowledgeBase = async () => {
   try {
     for (const article of articles) {
-      await createArticle(article);
+      await knowledgeBaseService.createArticle(article);
     }
     console.log('Knowledge base seeded successfully');
   } catch (error) {

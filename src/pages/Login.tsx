@@ -8,6 +8,7 @@ import {
   Container,
   InputAdornment,
   IconButton,
+  Alert
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
@@ -21,46 +22,27 @@ import logoImage from '../logo.png';
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  });
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    try {
-      // In a real app, you would validate credentials with your backend
-      // For now, we'll simulate a successful login with hardcoded data
-      if (formData.email && formData.password) {
-        // Only grant admin access if email contains 'admin'
-        // In a real app, this would be checked against Firebase roles
-        const isAdmin = formData.email.includes('admin');
-        
-        const userData: User = {
-          name: formData.email.split('@')[0],
-          email: formData.email,
-          role: isAdmin ? 'admin' as const : 'agent' as const,
-          status: 'active' as const
-        };
-        login(userData);
-        navigate('/dashboard');
-      } else {
-        setError('Please fill in all fields');
-      }
-    } catch (err) {
-      setError('Invalid credentials');
+    if (!email || !password) {
+      setError('Please fill in all fields');
+      return;
     }
-  };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    try {
+      await login(email, password);
+      navigate('/dashboard');
+    } catch (error) {
+      setError('Failed to login. Please check your credentials.');
+      console.error('Login error:', error);
+    }
   };
 
   return (
@@ -112,6 +94,7 @@ const Login: React.FC = () => {
             Sign in to Dashboard
           </Typography>
 
+          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
           <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
             <TextField
               margin="normal"
@@ -122,9 +105,8 @@ const Login: React.FC = () => {
               name="email"
               autoComplete="email"
               autoFocus
-              value={formData.email}
-              onChange={handleChange}
-              error={!!error}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
 
             <TextField
@@ -136,9 +118,8 @@ const Login: React.FC = () => {
               type={showPassword ? 'text' : 'password'}
               id="password"
               autoComplete="current-password"
-              value={formData.password}
-              onChange={handleChange}
-              error={!!error}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -152,12 +133,6 @@ const Login: React.FC = () => {
                 ),
               }}
             />
-
-            {error && (
-              <Typography color="error" variant="body2" sx={{ mt: 1 }}>
-                {error}
-              </Typography>
-            )}
 
             <Button
               type="submit"

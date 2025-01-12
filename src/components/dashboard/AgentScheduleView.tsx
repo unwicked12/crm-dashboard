@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -40,51 +40,45 @@ import {
   addDays,
   getDay,
 } from 'date-fns';
-
-interface AgentSchedule {
-  id: string;
-  name: string;
-  avatarUrl?: string;
-  shift: {
-    start: string;
-    end: string;
-  };
-  tasks: {
-    morning: 'call' | 'crm';
-    afternoon: 'call' | 'crm';
-  };
-}
+import { userService, User, Schedule } from '../../services/userService';
 
 const AgentScheduleView: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Mock data - replace with actual API data
-  const generateMockAgents = (date: Date): AgentSchedule[] => {
-    return [
-      {
-        id: '1',
-        name: 'John Doe',
-        avatarUrl: 'https://i.pravatar.cc/150?img=1',
-        shift: { start: '09:00', end: '17:00' },
-        tasks: { morning: 'call', afternoon: 'crm' },
-      },
-      {
-        id: '2',
-        name: 'Jane Smith',
-        avatarUrl: 'https://i.pravatar.cc/150?img=2',
-        shift: { start: '10:00', end: '18:00' },
-        tasks: { morning: 'crm', afternoon: 'call' },
-      },
-      {
-        id: '3',
-        name: 'Mike Johnson',
-        avatarUrl: 'https://i.pravatar.cc/150?img=3',
-        shift: { start: '08:00', end: '16:00' },
-        tasks: { morning: 'call', afternoon: 'call' },
-      },
-    ];
-  };
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const fetchedUsers = await userService.getAllUsers();
+        setUsers(fetchedUsers);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    const fetchSchedules = async () => {
+      try {
+        setLoading(true);
+        const monthStart = startOfMonth(currentMonth);
+        const monthEnd = endOfMonth(currentMonth);
+        const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
+        setSchedules(fetchedSchedules);
+      } catch (error) {
+        console.error('Error fetching schedules:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSchedules();
+  }, [currentMonth]);
 
   const handlePrevMonth = () => {
     setCurrentMonth(subMonths(currentMonth, 1));
@@ -110,12 +104,18 @@ const AgentScheduleView: React.FC = () => {
     setSelectedDate(null);
   };
 
-  const getTaskIcon = (task: 'call' | 'crm') => {
-    return task === 'call' ? <CallIcon fontSize="small" /> : <CRMIcon fontSize="small" />;
+  const getTaskIcon = (task: 'CALL' | 'CRM') => {
+    return task === 'CALL' ? <CallIcon fontSize="small" /> : <CRMIcon fontSize="small" />;
   };
 
-  const getTaskColor = (task: 'call' | 'crm') => {
-    return task === 'call' ? 'primary' : 'secondary';
+  const getTaskColor = (task: 'CALL' | 'CRM') => {
+    return task === 'CALL' ? 'primary' : 'secondary';
+  };
+
+  const getSchedulesForDate = (date: Date): Schedule[] => {
+    return schedules.filter(schedule => 
+      isSameDay(schedule.date, date)
+    );
   };
 
   const renderCalendar = () => {
@@ -158,15 +158,7 @@ const AgentScheduleView: React.FC = () => {
         const isCurrentMonth = isSameMonth(day, currentMonth);
         const isSelectedDay = selectedDate && isSameDay(day, selectedDate);
         const isTodays = isToday(day);
-        const agents = generateMockAgents(day);
-
-        // Cashsentinel brand colors
-        const cashsentinelGreen = '#00B388';
-        const cashsentinelGreenLight = '#E6F7F2';
-        const cashsentinelGreenDark = '#008F6B';
-        const cashsentinelBlue = '#144372';
-        const cashsentinelBlueLight = '#E6EEF7';
-        const cashsentinelBlueDark = '#0D2B4A';
+        const daySchedules = getSchedulesForDate(day);
 
         days.push(
           <Grid item xs key={day.toString()}>
@@ -181,33 +173,23 @@ const AgentScheduleView: React.FC = () => {
                 position: 'relative',
                 border: '1px solid',
                 borderColor: isSelectedDay 
-                  ? cashsentinelBlue
+                  ? 'primary.main'
                   : isTodays
-                  ? cashsentinelGreen
+                  ? 'success.main'
                   : 'divider',
                 bgcolor: isSelectedDay
-                  ? cashsentinelBlue
+                  ? 'primary.main'
                   : isTodays
-                  ? cashsentinelGreenLight
+                  ? 'success.light'
                   : isCurrentMonth
                   ? 'background.paper'
                   : 'action.hover',
                 '&:hover': {
                   bgcolor: isSelectedDay
-                    ? cashsentinelBlueDark
+                    ? 'primary.dark'
                     : isTodays
-                    ? cashsentinelGreen
+                    ? 'success.main'
                     : 'action.hover',
-                },
-                '&::before': {
-                  content: '""',
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: isCurrentMonth ? 'transparent' : 'rgba(0,0,0,0.1)',
-                  pointerEvents: 'none',
                 },
               }}
             >
@@ -228,7 +210,7 @@ const AgentScheduleView: React.FC = () => {
                     color: isSelectedDay
                       ? '#fff'
                       : isTodays
-                      ? cashsentinelGreenDark
+                      ? 'success.dark'
                       : isCurrentMonth 
                       ? 'text.primary' 
                       : 'text.secondary',
@@ -236,26 +218,11 @@ const AgentScheduleView: React.FC = () => {
                 >
                   {format(day, dateFormat)}
                 </Typography>
-                {isCurrentMonth && agents.length > 0 && (
+                {isCurrentMonth && daySchedules.length > 0 && (
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
                     <Badge
-                      badgeContent={agents.length}
-                      sx={{ 
-                        '& .MuiBadge-badge': { 
-                          position: 'static', 
-                          transform: 'none',
-                          color: isSelectedDay 
-                            ? cashsentinelBlue
-                            : isTodays
-                            ? cashsentinelGreenDark
-                            : '#fff',
-                          bgcolor: isSelectedDay || isTodays
-                            ? '#fff'
-                            : isSelectedDay 
-                            ? cashsentinelBlue 
-                            : cashsentinelGreen,
-                        } 
-                      }}
+                      badgeContent={daySchedules.length}
+                      color={isSelectedDay ? 'secondary' : 'primary'}
                     />
                     <Typography
                       variant="caption"
@@ -263,7 +230,7 @@ const AgentScheduleView: React.FC = () => {
                         color: isSelectedDay
                           ? '#fff'
                           : isTodays
-                          ? cashsentinelGreenDark
+                          ? 'success.dark'
                           : 'text.secondary',
                         fontSize: '0.7rem',
                       }}
@@ -296,7 +263,7 @@ const AgentScheduleView: React.FC = () => {
   const renderScheduleTable = () => {
     if (!selectedDate) return null;
 
-    const agents = generateMockAgents(selectedDate);
+    const daySchedules = getSchedulesForDate(selectedDate);
 
     return (
       <Box sx={{ mt: 3 }}>
@@ -329,62 +296,64 @@ const AgentScheduleView: React.FC = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {agents.map((agent) => (
-                <TableRow 
-                  key={agent.id}
-                  sx={{
-                    '&:hover': {
-                      backgroundColor: 'action.hover',
-                    },
-                  }}
-                >
-                  <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <Avatar
-                        src={agent.avatarUrl}
-                        sx={{ width: 32, height: 32 }}
-                      />
-                      <Typography variant="body2">
-                        {agent.name}
-                      </Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <TimeIcon fontSize="small" color="action" />
-                      <Typography variant="body2">
-                        {agent.shift.start} - {agent.shift.end}
-                      </Typography>
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={2}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                          Morning
+              {daySchedules.map((schedule) => {
+                const user = users.find(u => u.id === schedule.userId);
+                return (
+                  <TableRow 
+                    key={schedule.id}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      },
+                    }}
+                  >
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Avatar>
+                          {user?.name.charAt(0)}
+                        </Avatar>
+                        <Typography variant="body2">
+                          {user?.name || 'Unknown User'}
                         </Typography>
-                        <Chip
-                          icon={getTaskIcon(agent.tasks.morning)}
-                          label={agent.tasks.morning.toUpperCase()}
-                          color={getTaskColor(agent.tasks.morning)}
-                          size="small"
-                        />
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
-                          Afternoon
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <TimeIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {schedule.shift}
                         </Typography>
-                        <Chip
-                          icon={getTaskIcon(agent.tasks.afternoon)}
-                          label={agent.tasks.afternoon.toUpperCase()}
-                          color={getTaskColor(agent.tasks.afternoon)}
-                          size="small"
-                        />
-                      </Box>
-                    </Stack>
-                  </TableCell>
-                </TableRow>
-              ))}
+                      </Stack>
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" spacing={2}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                            Morning
+                          </Typography>
+                          <Chip
+                            icon={getTaskIcon(schedule.tasks.morning)}
+                            label={schedule.tasks.morning}
+                            color={getTaskColor(schedule.tasks.morning)}
+                            size="small"
+                          />
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary" display="block" mb={0.5}>
+                            Afternoon
+                          </Typography>
+                          <Chip
+                            icon={getTaskIcon(schedule.tasks.afternoon)}
+                            label={schedule.tasks.afternoon}
+                            color={getTaskColor(schedule.tasks.afternoon)}
+                            size="small"
+                          />
+                        </Box>
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>

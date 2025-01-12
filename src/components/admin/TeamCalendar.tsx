@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -29,9 +29,9 @@ import {
   ChevronLeft as PrevIcon,
   ChevronRight as NextIcon,
   Add as AddIcon,
-  AutoMode as AutoPlanIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  AutoMode as AutoScheduleIcon,
 } from '@mui/icons-material';
 import {
   format,
@@ -48,68 +48,71 @@ import {
   isSaturday,
   isWednesday,
   getDay,
+  isSameDay,
+  startOfWeek,
+  endOfWeek,
 } from 'date-fns';
+import { userService, Schedule } from '../../services/userService';
+import { scheduleService } from '../../services/scheduleService';
 
-type ShiftType = '08-17' | '09-18' | '10-19';
-type TaskType = 'Calls' | 'CRM';
-type TaskTimeSlot = 'AM' | 'PM';
-
-interface AgentSchedule {
-  agentId: string;
-  shiftType: ShiftType;
-  tasks: {
-    morning: TaskType;
-    afternoon: TaskType;
-  };
-}
-
-interface Event {
+interface User {
   id: string;
-  title: string;
-  date: string;
-  type: 'holiday' | 'special' | 'meeting' | 'saturday-shift' | 'day-off';
-  employee: string;
-  schedule?: AgentSchedule;
-}
-
-interface Employee {
-  id: string;
+  uid?: string;
   name: string;
-  isOnHoliday?: boolean;
-  lastSaturdayShift?: string;
+  email: string;
+  role: string;
+  tier: string;
 }
-
-const SHIFTS: ShiftType[] = ['08-17', '09-18', '10-19'];
-const TASKS: TaskType[] = ['Calls', 'CRM'];
 
 const TeamCalendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [events, setEvents] = useState<Event[]>([]);
   const [openDialog, setOpenDialog] = useState(false);
-  const [openPlanDialog, setOpenPlanDialog] = useState(false);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const [newEvent, setNewEvent] = useState<Omit<Event, 'id'>>({
-    title: '',
-    date: '',
-    type: 'meeting',
-    employee: '',
-    schedule: {
-      agentId: '',
-      shiftType: '09-18',
-      tasks: {
-        morning: 'Calls',
-        afternoon: 'CRM',
-      },
+  const [users, setUsers] = useState<User[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newSchedule, setNewSchedule] = useState<Omit<Schedule, 'id'>>({
+    userId: '',
+    date: new Date(),
+    shift: '09:00-18:00',
+    tasks: {
+      morning: 'CALL',
+      afternoon: 'CRM',
     },
   });
+  const [autoScheduleLoading, setAutoScheduleLoading] = useState(false);
+  const [clearingSchedules, setClearingSchedules] = useState(false);
 
-  // Mock employees data - replace with actual API call
-  const [employees] = useState<Employee[]>([
-    { id: '1', name: 'John Doe' },
-    { id: '2', name: 'Jane Smith' },
-    { id: '3', name: 'Mike Johnson' },
-    { id: '4', name: 'Sarah Wilson' },
-  ]);
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const fetchedUsers = await userService.getAllUsers();
+        setUsers(fetchedUsers);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    const fetchSchedules = async () => {
+      try {
+        setLoading(true);
+        const monthStart = startOfMonth(currentDate);
+        const monthEnd = endOfMonth(currentDate);
+        const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
+        setSchedules(fetchedSchedules);
+      } catch (error) {
+        console.error('Error fetching schedules:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSchedules();
+  }, [currentDate]);
 
   const handleDateClick = (date: string) => {
     setExpandedDate(expandedDate === date ? null : date);
@@ -129,75 +132,124 @@ const TeamCalendar: React.FC = () => {
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
-    setNewEvent({
-      title: '',
-      date: '',
-      type: 'meeting',
-      employee: '',
-      schedule: {
-        agentId: '',
-        shiftType: '09-18',
-        tasks: {
-          morning: 'Calls',
-          afternoon: 'CRM',
-        },
+    setNewSchedule({
+      userId: '',
+      date: new Date(),
+      shift: '09:00-18:00',
+      tasks: {
+        morning: 'CALL',
+        afternoon: 'CRM',
       },
     });
   };
 
-  const handleAddEvent = () => {
-    const event: Event = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: newEvent.title,
-      date: newEvent.date,
-      type: newEvent.type,
-      employee: newEvent.employee,
-      schedule: newEvent.schedule,
-    };
-    setEvents([...events, event]);
-    handleCloseDialog();
-  };
-
-  const getTaskTimeDisplay = (shiftType: ShiftType, timeSlot: TaskTimeSlot) => {
-    const timeRanges = {
-      '08-17': { AM: '09:00-12:30', PM: '13:00-17:00' },
-      '09-18': { AM: '09:00-12:30', PM: '13:00-18:00' },
-      '10-19': { AM: '10:00-12:30', PM: '13:00-19:00' },
-    };
-    return timeRanges[shiftType][timeSlot];
-  };
-
-  const getDaysInMonth = () => {
-    const start = startOfMonth(currentDate);
-    const end = endOfMonth(currentDate);
-    return eachDayOfInterval({ start, end });
-  };
-
-  const getEventsForDate = (date: Date) => {
-    return events.filter(
-      (event) => format(parseISO(event.date), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-    );
-  };
-
-  const getEventChipColor = (type: string) => {
-    switch (type) {
-      case 'holiday':
-        return 'error';
-      case 'saturday-shift':
-        return 'warning';
-      case 'day-off':
-        return 'success';
-      case 'special':
-        return 'warning';
-      case 'meeting':
-        return 'primary';
-      default:
-        return 'default';
+  const handleAddSchedule = async () => {
+    try {
+      await userService.createSchedule(newSchedule);
+      // Refresh schedules
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
+      setSchedules(fetchedSchedules);
+      handleCloseDialog();
+    } catch (error) {
+      console.error('Error creating schedule:', error);
     }
   };
 
+  const handleAutoSchedule = async () => {
+    try {
+      console.log('Starting auto-schedule...');
+      setAutoScheduleLoading(true);
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+
+      // Clear existing schedules first
+      console.log('Clearing existing schedules...');
+      await scheduleService.clearAllSchedules();
+
+      // Generate optimal schedules
+      console.log('Generating new schedules...');
+      const newSchedules = await scheduleService.generateSchedule(
+        monthStart,
+        monthEnd
+      );
+      console.log('Generated schedules:', newSchedules);
+
+      // Create all new schedules
+      console.log('Creating new schedules...');
+      for (const schedule of newSchedules) {
+        await userService.createSchedule({
+          userId: schedule.userId,
+          date: new Date(schedule.date),
+          shift: schedule.shift,
+          tasks: schedule.tasks
+        });
+      }
+
+      // Refresh schedules
+      console.log('Refreshing schedule display...');
+      const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
+      console.log('Fetched schedules:', fetchedSchedules);
+      setSchedules(fetchedSchedules);
+      console.log('Auto-schedule complete!');
+    } catch (error) {
+      console.error('Error auto-scheduling:', error);
+    } finally {
+      setAutoScheduleLoading(false);
+    }
+  };
+
+  const handleClearSchedules = async () => {
+    if (!window.confirm('Are you sure you want to clear all schedules? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      setClearingSchedules(true);
+      await scheduleService.clearAllSchedules();
+      setSchedules([]);
+    } catch (error) {
+      console.error('Error clearing schedules:', error);
+    } finally {
+      setClearingSchedules(false);
+    }
+  };
+
+  const getTaskTimeDisplay = (shift: string, timeSlot: 'AM' | 'PM') => {
+    const [start, end] = shift.split('-');
+    const startHour = parseInt(start);
+    const endHour = parseInt(end);
+    
+    if (timeSlot === 'AM') {
+      return `${start}:00-12:30`;
+    } else {
+      return `13:00-${end}:00`;
+    }
+  };
+
+  const getDaysInMonth = () => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart);
+    const calendarEnd = endOfWeek(monthEnd);
+    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  };
+
+  const getSchedulesForDate = (date: Date) => {
+    return schedules.filter(schedule => 
+      isSameDay(schedule.date, date)
+    ).map(schedule => ({
+      ...schedule,
+      tasks: schedule.tasks || {
+        morning: 'CALL',
+        afternoon: 'CRM'
+      }
+    }));
+  };
+
   const renderScheduleDetails = (date: Date) => {
-    const dateEvents = getEventsForDate(date);
+    const dateSchedules = getSchedulesForDate(date);
     const formattedDate = format(date, 'yyyy-MM-dd');
     const isExpanded = expandedDate === formattedDate;
 
@@ -226,14 +278,17 @@ const TeamCalendar: React.FC = () => {
         </Box>
 
         <Stack spacing={0.5}>
-          {dateEvents.map((event) => (
-            <Chip
-              key={event.id}
-              label={`${event.title} - ${event.employee}`}
-              size="small"
-              color={getEventChipColor(event.type) as any}
-            />
-          ))}
+          {dateSchedules.map((schedule) => {
+            const user = users.find(u => u.id === schedule.userId);
+            return (
+              <Chip
+                key={schedule.id}
+                label={user?.name || schedule.userId}
+                size="small"
+                color="primary"
+              />
+            );
+          })}
         </Stack>
       </Box>
     );
@@ -252,6 +307,24 @@ const TeamCalendar: React.FC = () => {
           <NextIcon />
         </IconButton>
         <Box sx={{ flex: 1 }} />
+        <Button
+          variant="outlined"
+          color="error"
+          onClick={handleClearSchedules}
+          disabled={clearingSchedules || autoScheduleLoading}
+          sx={{ mr: 1 }}
+        >
+          Clear Schedules
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<AutoScheduleIcon />}
+          onClick={handleAutoSchedule}
+          disabled={autoScheduleLoading || clearingSchedules}
+          sx={{ mr: 1 }}
+        >
+          Auto Schedule
+        </Button>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -284,6 +357,7 @@ const TeamCalendar: React.FC = () => {
                 border: isSaturday(date) ? '2px solid #ff9800' : undefined,
                 transition: 'all 0.3s ease',
                 position: 'relative',
+                opacity: !isSameMonth(date, currentDate) ? 0.5 : 1,
                 '&:hover': {
                   boxShadow: 3,
                 },
@@ -331,34 +405,35 @@ const TeamCalendar: React.FC = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {getEventsForDate(date)
-                          .filter((event) => event.schedule)
-                          .map((event) => (
-                            <TableRow key={event.id} hover>
+                        {getSchedulesForDate(date).map((schedule) => {
+                          const user = users.find(u => u.id === schedule.userId);
+                          return (
+                            <TableRow key={schedule.id} hover>
                               <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                <Typography variant="body2">{event.employee}</Typography>
+                                <Typography variant="body2">{user?.name || schedule.userId}</Typography>
                               </TableCell>
                               <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                                <Typography variant="body2">{event.schedule?.shiftType}</Typography>
+                                <Typography variant="body2">{schedule.shift}</Typography>
                               </TableCell>
                               <TableCell>
                                 <Typography variant="body2" sx={{ fontWeight: 'medium', whiteSpace: 'nowrap' }}>
-                                  {event.schedule?.tasks.morning}
+                                  {schedule.tasks.morning}
                                 </Typography>
                                 <Typography variant="caption" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
-                                  {getTaskTimeDisplay(event.schedule?.shiftType || '09-18', 'AM')}
+                                  {getTaskTimeDisplay(schedule.shift, 'AM')}
                                 </Typography>
                               </TableCell>
                               <TableCell>
                                 <Typography variant="body2" sx={{ fontWeight: 'medium', whiteSpace: 'nowrap' }}>
-                                  {event.schedule?.tasks.afternoon}
+                                  {schedule.tasks.afternoon}
                                 </Typography>
                                 <Typography variant="caption" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
-                                  {getTaskTimeDisplay(event.schedule?.shiftType || '09-18', 'PM')}
+                                  {getTaskTimeDisplay(schedule.shift, 'PM')}
                                 </Typography>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -376,87 +451,64 @@ const TeamCalendar: React.FC = () => {
             <TextField
               label="Date"
               type="date"
-              value={newEvent.date}
-              onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+              value={format(newSchedule.date, 'yyyy-MM-dd')}
+              onChange={(e) => setNewSchedule({ ...newSchedule, date: new Date(e.target.value) })}
               fullWidth
               InputLabelProps={{ shrink: true }}
             />
             <TextField
               select
-              label="Employee"
-              value={newEvent.employee}
-              onChange={(e) => setNewEvent({ ...newEvent, employee: e.target.value })}
+              label="Agent"
+              value={newSchedule.userId}
+              onChange={(e) => setNewSchedule({ ...newSchedule, userId: e.target.value })}
               fullWidth
             >
-              {employees.map((emp) => (
-                <MenuItem key={emp.id} value={emp.name}>
-                  {emp.name}
+              {users.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {user.name}
                 </MenuItem>
               ))}
             </TextField>
             <TextField
               select
               label="Shift"
-              value={newEvent.schedule?.shiftType}
-              onChange={(e) =>
-                setNewEvent({
-                  ...newEvent,
-                  schedule: { ...newEvent.schedule!, shiftType: e.target.value as ShiftType },
-                })
-              }
+              value={newSchedule.shift}
+              onChange={(e) => setNewSchedule({ ...newSchedule, shift: e.target.value })}
               fullWidth
             >
-              {SHIFTS.map((shift) => (
-                <MenuItem key={shift} value={shift}>
-                  {shift}
-                </MenuItem>
-              ))}
+              <MenuItem value="08:00-17:00">08:00 - 17:00</MenuItem>
+              <MenuItem value="09:00-18:00">09:00 - 18:00</MenuItem>
+              <MenuItem value="10:00-19:00">10:00 - 19:00</MenuItem>
             </TextField>
             <Grid container spacing={2}>
               <Grid item xs={6}>
                 <TextField
                   select
                   label="Morning Task"
-                  value={newEvent.schedule?.tasks.morning}
-                  onChange={(e) =>
-                    setNewEvent({
-                      ...newEvent,
-                      schedule: {
-                        ...newEvent.schedule!,
-                        tasks: { ...newEvent.schedule!.tasks, morning: e.target.value as TaskType },
-                      },
-                    })
-                  }
+                  value={newSchedule.tasks.morning}
+                  onChange={(e) => setNewSchedule({
+                    ...newSchedule,
+                    tasks: { ...newSchedule.tasks, morning: e.target.value as 'CALL' | 'CRM' }
+                  })}
                   fullWidth
                 >
-                  {TASKS.map((task) => (
-                    <MenuItem key={task} value={task}>
-                      {task}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value="CALL">CALL</MenuItem>
+                  <MenuItem value="CRM">CRM</MenuItem>
                 </TextField>
               </Grid>
               <Grid item xs={6}>
                 <TextField
                   select
                   label="Afternoon Task"
-                  value={newEvent.schedule?.tasks.afternoon}
-                  onChange={(e) =>
-                    setNewEvent({
-                      ...newEvent,
-                      schedule: {
-                        ...newEvent.schedule!,
-                        tasks: { ...newEvent.schedule!.tasks, afternoon: e.target.value as TaskType },
-                      },
-                    })
-                  }
+                  value={newSchedule.tasks.afternoon}
+                  onChange={(e) => setNewSchedule({
+                    ...newSchedule,
+                    tasks: { ...newSchedule.tasks, afternoon: e.target.value as 'CALL' | 'CRM' }
+                  })}
                   fullWidth
                 >
-                  {TASKS.map((task) => (
-                    <MenuItem key={task} value={task}>
-                      {task}
-                    </MenuItem>
-                  ))}
+                  <MenuItem value="CALL">CALL</MenuItem>
+                  <MenuItem value="CRM">CRM</MenuItem>
                 </TextField>
               </Grid>
             </Grid>
@@ -464,8 +516,8 @@ const TeamCalendar: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button onClick={handleAddEvent} variant="contained">
-            Add
+          <Button onClick={handleAddSchedule} variant="contained" color="primary">
+            Add Schedule
           </Button>
         </DialogActions>
       </Dialog>

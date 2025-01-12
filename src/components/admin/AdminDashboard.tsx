@@ -1,173 +1,192 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box,
-  Grid,
-  Card,
-  CardContent,
   Typography,
-  Container,
-  Tabs,
-  Tab,
   Paper,
+  Grid,
+  IconButton,
+  Tooltip,
+  Tab,
+  Tabs,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import PeopleIcon from '@mui/icons-material/People';
-import EventNoteIcon from '@mui/icons-material/EventNote';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import BeachAccessIcon from '@mui/icons-material/BeachAccess';
-
-// Import admin components
+import {
+  Description as RequestIcon,
+  Group as AgentsIcon,
+  BeachAccess as HolidayIcon,
+  AccessTime as SpecialRequestIcon,
+  Refresh as RefreshIcon,
+} from '@mui/icons-material';
 import RequestManagement from './RequestManagement';
 import TeamCalendar from './TeamCalendar';
 import ActivityOverview from './ActivityOverview';
+import { dashboardService, DashboardStats } from '../../services/dashboardService';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
+interface StatCardProps {
+  title: string;
   value: number;
+  icon: React.ReactNode;
+  color: string;
 }
 
-const StyledCard = styled(Card)(({ theme }) => ({
-  height: '100%',
-  display: 'flex',
-  flexDirection: 'column',
-  transition: 'transform 0.3s ease-in-out',
-  '&:hover': {
-    transform: 'translateY(-5px)',
-  },
-}));
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`admin-tabpanel-${index}`}
-      aria-labelledby={`admin-tab-${index}`}
-      {...other}
+const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 3,
+      height: '100%',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      border: '1px solid',
+      borderColor: 'divider',
+      transition: 'all 0.3s ease',
+      '&:hover': {
+        transform: 'translateY(-4px)',
+        boxShadow: 2,
+      },
+    }}
+  >
+    <Box
+      sx={{
+        width: 48,
+        height: 48,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: `${color}15`,
+        color: color,
+        mb: 2,
+      }}
     >
-      {value === index && <Box>{children}</Box>}
-    </div>
-  );
-}
+      {icon}
+    </Box>
+    <Typography variant="h4" sx={{ mb: 1, fontWeight: 'medium' }}>
+      {value}
+    </Typography>
+    <Typography variant="body2" color="text.secondary">
+      {title}
+    </Typography>
+  </Paper>
+);
 
 const AdminDashboard: React.FC = () => {
-  const [tabValue, setTabValue] = useState(0);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<DashboardStats>({
     pendingRequests: 0,
     activeAgents: 0,
     plannedHolidays: 0,
     specialRequests: 0,
   });
+  const [activeTab, setActiveTab] = useState('requests');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Mock statistics
-    setStats({
-      pendingRequests: 5,
-      activeAgents: 12,
-      plannedHolidays: 3,
-      specialRequests: 2,
+    setLoading(true);
+    
+    // Subscribe to real-time stats updates
+    const unsubscribe = dashboardService.subscribeToStats((newStats) => {
+      console.log('Received new stats:', newStats); // Debug log
+      setStats(newStats);
+      setLoading(false);
     });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
+  const handleRefresh = async () => {
+    setLoading(true);
+    try {
+      const freshStats = await dashboardService.getStats();
+      console.log('Refreshed stats:', freshStats); // Debug log
+      setStats(freshStats);
+    } catch (error) {
+      console.error('Error refreshing stats:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Admin Dashboard
-      </Typography>
-
-      {/* Quick Stats Section */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} sm={6} md={3}>
-          <StyledCard>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Pending Requests
-              </Typography>
-              <Typography variant="h5" component="div">
-                {stats.pendingRequests}
-              </Typography>
-              <EventNoteIcon color="primary" sx={{ fontSize: 40, mt: 2 }} />
-            </CardContent>
-          </StyledCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StyledCard>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Active Agents
-              </Typography>
-              <Typography variant="h5" component="div">
-                {stats.activeAgents}
-              </Typography>
-              <PeopleIcon color="success" sx={{ fontSize: 40, mt: 2 }} />
-            </CardContent>
-          </StyledCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StyledCard>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Planned Holidays
-              </Typography>
-              <Typography variant="h5" component="div">
-                {stats.plannedHolidays}
-              </Typography>
-              <BeachAccessIcon color="warning" sx={{ fontSize: 40, mt: 2 }} />
-            </CardContent>
-          </StyledCard>
-        </Grid>
-        <Grid item xs={12} sm={6} md={3}>
-          <StyledCard>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                Special Requests
-              </Typography>
-              <Typography variant="h5" component="div">
-                {stats.specialRequests}
-              </Typography>
-              <AccessTimeIcon color="info" sx={{ fontSize: 40, mt: 2 }} />
-            </CardContent>
-          </StyledCard>
-        </Grid>
-      </Grid>
-
-      {/* Tabs Section */}
-      <Paper sx={{ width: '100%', mt: 3 }}>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs
-            value={tabValue}
-            onChange={handleTabChange}
-            aria-label="admin dashboard tabs"
-            centered
-          >
-            <Tab label="Request Management" />
-            <Tab label="Team Calendar" />
-            <Tab label="Activity Overview" />
-          </Tabs>
+    <Box sx={{ p: 3 }}>
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4" sx={{ fontWeight: 'medium' }}>
+            Admin Dashboard
+          </Typography>
+          <Tooltip title="Refresh Stats">
+            <IconButton onClick={handleRefresh} disabled={loading}>
+              <RefreshIcon sx={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+            </IconButton>
+          </Tooltip>
         </Box>
 
-        <Box sx={{ p: 3 }}>
-          <TabPanel value={tabValue} index={0}>
-            <RequestManagement />
-          </TabPanel>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Pending Requests"
+              value={stats.pendingRequests}
+              icon={<RequestIcon />}
+              color="#2196f3"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Active Agents"
+              value={stats.activeAgents}
+              icon={<AgentsIcon />}
+              color="#4caf50"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Planned Holidays"
+              value={stats.plannedHolidays}
+              icon={<HolidayIcon />}
+              color="#ff9800"
+            />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <StatCard
+              title="Special Requests"
+              value={stats.specialRequests}
+              icon={<SpecialRequestIcon />}
+              color="#f44336"
+            />
+          </Grid>
+        </Grid>
+      </Box>
 
-          <TabPanel value={tabValue} index={1}>
-            <TeamCalendar />
-          </TabPanel>
+      <Box sx={{ mb: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, newValue) => setActiveTab(newValue)}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Request Management" value="requests" />
+          <Tab label="Team Calendar" value="calendar" />
+          <Tab label="Activity Overview" value="activity" />
+        </Tabs>
+      </Box>
 
-          <TabPanel value={tabValue} index={2}>
-            <ActivityOverview />
-          </TabPanel>
-        </Box>
-      </Paper>
-    </Container>
+      <Box sx={{ mt: 3 }}>
+        {activeTab === 'requests' && <RequestManagement />}
+        {activeTab === 'calendar' && <TeamCalendar />}
+        {activeTab === 'activity' && <ActivityOverview />}
+      </Box>
+
+      <style>
+        {`
+          @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}
+      </style>
+    </Box>
   );
 };
 

@@ -26,19 +26,8 @@ import {
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
-import { getRequests, createRequest } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
-
-interface Request {
-  id: string;
-  type: 'holiday' | 'special';
-  startDate: string;
-  endDate: string;
-  reason: string;
-  date: string;
-  status: 'pending' | 'approved' | 'rejected';
-  userId: string;
-}
+import { requestService, Request } from '../../services/requestService';
 
 interface HolidayRequest extends Request {
   type: 'holiday';
@@ -54,48 +43,44 @@ const HolidayRequest: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
 
+  const fetchRequests = async (userId: string) => {
+    try {
+      const data = await requestService.getUserRequests(userId);
+      const holidayRequests = data.filter((req) => req.type === 'holiday') as HolidayRequest[];
+      console.log('Fetched holiday requests:', holidayRequests); // Debug log
+      setRequests(holidayRequests);
+    } catch (error) {
+      console.error('Error fetching holiday requests:', error);
+    }
+  };
+
   useEffect(() => {
-    // Don't fetch if user is not authenticated
-    if (!user?.id) return;
+    if (!user?.uid) return;
+    fetchRequests(user.uid);
 
-    const userId = user.id; // Store user.id in a const to ensure it's defined throughout the closure
-
-    const fetchRequests = async () => {
-      try {
-        const data = await getRequests(userId);
-        setRequests(data.filter((req: Request) => req.type === 'holiday') as HolidayRequest[]);
-      } catch (error) {
-        console.error('Error fetching holiday requests:', error);
-      }
-    };
-
-    fetchRequests();
-    const refreshInterval = setInterval(fetchRequests, 30000);
+    const refreshInterval = setInterval(() => fetchRequests(user.uid), 30000);
     return () => clearInterval(refreshInterval);
-  }, [user?.id]);
+  }, [user?.uid]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !endDate || !reason || !user?.id) {
+    if (!startDate || !endDate || !reason || !user?.uid) {
       console.error('Missing required fields or user not authenticated');
       return;
     }
 
-    const userId = user.id; // Store user.id in a const to ensure it's defined throughout the closure
-
     setLoading(true);
     try {
-      await createRequest({
-        type: 'holiday' as const,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+      await requestService.createRequest({
+        type: 'holiday',
+        startDate,
+        endDate,
         reason,
-        userId
+        userId: user.uid
       });
 
       // Refresh the requests list
-      const updatedRequests = await getRequests(userId);
-      setRequests(updatedRequests.filter((req: Request) => req.type === 'holiday') as HolidayRequest[]);
+      await fetchRequests(user.uid);
 
       // Reset form
       setStartDate(null);
@@ -156,7 +141,7 @@ const HolidayRequest: React.FC = () => {
               <DatePicker
                 label="Start Date"
                 value={startDate}
-                onChange={setStartDate}
+                onChange={(date) => setStartDate(date)}
                 slots={{
                   openPickerIcon: CalendarIcon,
                 }}
@@ -170,7 +155,7 @@ const HolidayRequest: React.FC = () => {
               <DatePicker
                 label="End Date"
                 value={endDate}
-                onChange={setEndDate}
+                onChange={(date) => setEndDate(date)}
                 slots={{
                   openPickerIcon: CalendarIcon,
                 }}
@@ -233,120 +218,96 @@ const HolidayRequest: React.FC = () => {
           Previous Holiday Requests
         </Typography>
 
-        {requests.map((request) => (
-          <Accordion
-            key={request.id}
-            expanded={expanded === request.id}
-            onChange={handleAccordionChange(request.id)}
-            elevation={0}
-            sx={{
-              mb: 2,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: '12px !important',
-              '&:before': {
-                display: 'none',
-              },
-              '&.Mui-expanded': {
-                margin: '0 0 16px 0',
-              },
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
+        {requests.length === 0 ? (
+          <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+            No holiday requests found
+          </Typography>
+        ) : (
+          requests.map((request) => (
+            <Accordion
+              key={request.id || 'new'}
+              expanded={expanded === (request.id || 'new')}
+              onChange={handleAccordionChange(request.id || 'new')}
+              elevation={0}
               sx={{
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                mb: 2,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: '12px !important',
+                '&:before': {
+                  display: 'none',
+                },
+                '&.Mui-expanded': {
+                  margin: '0 0 16px 0',
                 },
               }}
             >
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={2}
-                sx={{ width: '100%' }}
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                sx={{
+                  borderRadius: 2,
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                  },
+                }}
               >
-                <Box sx={{ flex: 1 }}>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <CalendarIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                      {format(new Date(request.startDate), 'MMM dd')} - {format(new Date(request.endDate), 'MMM dd, yyyy')}
-                    </Typography>
-                  </Stack>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    alignItems="center"
-                    sx={{ mt: 0.5 }}
-                  >
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={2}
+                  sx={{ width: '100%' }}
+                >
+                  <Box sx={{ flex: 1 }}>
                     <Stack direction="row" spacing={1} alignItems="center">
-                      <TimeIcon
-                        sx={{
-                          fontSize: 16,
-                          color: theme.palette.text.secondary,
-                        }}
-                      />
-                      <Typography
-                        variant="caption"
-                        sx={{ color: theme.palette.text.secondary }}
-                      >
-                        Requested on {format(new Date(request.date), 'MMM dd, yyyy')}
+                      <CalendarIcon sx={{ color: theme.palette.primary.main, fontSize: 20 }} />
+                      <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                        {format(request.startDate, 'MMM dd')} - {format(request.endDate, 'MMM dd, yyyy')}
                       </Typography>
                     </Stack>
-                    <Chip
-                      label={request.status}
-                      size="small"
-                      sx={{
-                        backgroundColor: getStatusColor(request.status).bg,
-                        color: getStatusColor(request.status).color,
-                        textTransform: 'capitalize',
-                        fontWeight: 500,
-                      }}
-                    />
-                  </Stack>
-                </Box>
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Edit Request">
-                    <IconButton
-                      size="small"
-                      sx={{
-                        color: theme.palette.primary.main,
-                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                        },
-                      }}
+                    <Stack
+                      direction="row"
+                      spacing={2}
+                      alignItems="center"
+                      sx={{ mt: 0.5 }}
                     >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete Request">
-                    <IconButton
-                      size="small"
-                      sx={{
-                        color: theme.palette.error.main,
-                        backgroundColor: alpha(theme.palette.error.main, 0.1),
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.error.main, 0.2),
-                        },
-                      }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <TimeIcon
+                          sx={{
+                            fontSize: 16,
+                            color: theme.palette.text.secondary,
+                          }}
+                        />
+                        <Typography
+                          variant="caption"
+                          sx={{ color: theme.palette.text.secondary }}
+                        >
+                          Requested on {format(request.createdAt || new Date(), 'MMM dd, yyyy')}
+                        </Typography>
+                      </Stack>
+                      <Chip
+                        label={request.status}
+                        size="small"
+                        sx={{
+                          backgroundColor: getStatusColor(request.status).bg,
+                          color: getStatusColor(request.status).color,
+                          textTransform: 'capitalize',
+                          fontWeight: 500,
+                        }}
+                      />
+                    </Stack>
+                  </Box>
                 </Stack>
-              </Stack>
-            </AccordionSummary>
-            <AccordionDetails
-              sx={{
-                borderTop: `1px solid ${theme.palette.divider}`,
-                backgroundColor: alpha(theme.palette.primary.main, 0.02),
-              }}
-            >
-              <Typography color="text.secondary">{request.reason}</Typography>
-            </AccordionDetails>
-          </Accordion>
-        ))}
+              </AccordionSummary>
+              <AccordionDetails
+                sx={{
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
+                }}
+              >
+                <Typography color="text.secondary">{request.reason}</Typography>
+              </AccordionDetails>
+            </Accordion>
+          ))
+        )}
       </Box>
     </Box>
   );

@@ -1,0 +1,25 @@
+[debug] [2025-01-09T01:13:47.399Z] ----------------------------------------------------------------------
+[debug] [2025-01-09T01:13:47.401Z] Command:       /Users/unwicked/.nvm/versions/node/v22.11.0/bin/node /Users/unwicked/.nvm/versions/node/v22.11.0/bin/firebase init
+[debug] [2025-01-09T01:13:47.402Z] CLI Version:   13.29.1
+[debug] [2025-01-09T01:13:47.402Z] Platform:      darwin
+[debug] [2025-01-09T01:13:47.402Z] Node Version:  v22.11.0
+[debug] [2025-01-09T01:13:47.402Z] Time:          Thu Jan 09 2025 02:13:47 GMT+0100 (Central European Standard Time)
+[debug] [2025-01-09T01:13:47.402Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-01-09T01:13:47.442Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-01-09T01:13:47.443Z] > authorizing via signed-in user (soufiane.sebbane@gmail.com)
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  /Users/unwicked/Downloads/CS CRM
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+

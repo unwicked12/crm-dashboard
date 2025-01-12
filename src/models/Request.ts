@@ -50,7 +50,7 @@ const requestSchema = new Schema<IRequest>({
   },
 });
 
-requestSchema.pre('save', function(next) {
+requestSchema.pre('save', function(this: IRequest, next: mongoose.CallbackWithoutResultAndOptionalError) {
   this.updatedAt = new Date();
   next();
 });

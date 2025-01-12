@@ -7,14 +7,19 @@ import {
   Button,
   Typography,
   Box,
+  Alert,
 } from '@mui/material';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [credentials, setCredentials] = useState({
     email: '',
     password: '',
   });
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCredentials({
@@ -25,9 +30,17 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual authentication
-    // For now, just redirect to dashboard
-    navigate('/dashboard');
+    try {
+      setError('');
+      setLoading(true);
+      await login(credentials.email, credentials.password);
+      navigate('/dashboard');
+    } catch (error) {
+      setError('Failed to sign in. Please check your credentials.');
+      console.error('Login error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -51,9 +64,14 @@ const Login = () => {
           }}
         >
           <Typography component="h1" variant="h5">
-            CRM Dashboard Login
+            Sign in
           </Typography>
-          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
+          {error && (
+            <Alert severity="error" sx={{ width: '100%', mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+          <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1, width: '100%' }}>
             <TextField
               margin="normal"
               required
@@ -83,8 +101,9 @@ const Login = () => {
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
+              disabled={loading}
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </Button>
           </Box>
         </Paper>

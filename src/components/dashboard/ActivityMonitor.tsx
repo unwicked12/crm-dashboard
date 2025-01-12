@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Button,
@@ -13,6 +13,12 @@ import {
   ListItemText,
   ListItemAvatar,
   Avatar,
+  Card,
+  Grid,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   PlayArrow as CheckInIcon,
@@ -20,53 +26,257 @@ import {
   Restaurant as LunchIcon,
   Coffee as BreakIcon,
   AccessTime as ClockIcon,
-  PhoneInTalk as CallIcon,
-  Computer as CRMIcon,
+  Timer as TimerIcon,
 } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { format, differenceInMinutes, isToday, startOfDay } from 'date-fns';
+import { useAuth } from '../../contexts/AuthContext';
+import { activityService, UserStatus } from '../../services/activityService';
+import { 
+  doc, 
+  onSnapshot, 
+  query, 
+  collection, 
+  where, 
+  orderBy,
+  Timestamp
+} from 'firebase/firestore';
+import type { 
+  DocumentSnapshot, 
+  QuerySnapshot
+} from '@firebase/firestore-types';
+import { db } from '../../firebase';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 interface ActivityLog {
-  type: string;
+  id: string;
+  type: UserStatus;
   timestamp: Date;
+}
+
+interface FirestoreTimestamp {
+  seconds: number;
+  nanoseconds: number;
+  toDate?: () => Date;
+}
+
+interface ActivityDocument {
+  status: UserStatus;
+  lastAction: string;
+  lastActionTime: FirestoreTimestamp;
+  userName: string;
+  email: string;
+  currentTask?: string;
 }
 
 const ActivityMonitor: React.FC = () => {
   const theme = useTheme();
-  const [activityStatus, setActivityStatus] = useState<string>('checked-out');
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const { firebaseUser } = useAuth();
+  const [activityStatus, setActivityStatus] = useState<UserStatus>('checked-out');
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
   const [totalBreakTime, setTotalBreakTime] = useState<number>(0);
+  const [workingTime, setWorkingTime] = useState<number>(0);
+  const [lastCheckIn, setLastCheckIn] = useState<Date | null>(null);
+  const [currentBreakDuration, setCurrentBreakDuration] = useState<number>(0);
+  const [currentSessionDuration, setCurrentSessionDuration] = useState<number>(0);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+
+  const calculateWorkingAndBreakTime = useCallback((logs: ActivityLog[]) => {
+    let totalWorkMinutes = 0;
+    let totalBreakMinutes = 0;
+    let lastCheckin: Date | null = null;
+    let lastBreakStart: Date | null = null;
+
+    // Sort logs chronologically for calculation
+    const chronologicalLogs = [...logs].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    chronologicalLogs.forEach((log) => {
+      if (log.type === 'checked-in') {
+        lastCheckin = log.timestamp;
+        if (lastBreakStart) {
+          const breakDuration = differenceInMinutes(log.timestamp, lastBreakStart);
+          if (!isNaN(breakDuration) && breakDuration > 0) {
+            totalBreakMinutes += breakDuration;
+          }
+          lastBreakStart = null;
+        }
+      } else if (log.type === 'checked-out' && lastCheckin) {
+        const duration = differenceInMinutes(log.timestamp, lastCheckin);
+        if (!isNaN(duration) && duration > 0) {
+          totalWorkMinutes += duration;
+        }
+        lastCheckin = null;
+      } else if ((log.type === 'break' || log.type === 'lunch')) {
+        lastBreakStart = log.timestamp;
+        if (lastCheckin) {
+          const workDuration = differenceInMinutes(log.timestamp, lastCheckin);
+          if (!isNaN(workDuration) && workDuration > 0) {
+            totalWorkMinutes += workDuration;
+          }
+          lastCheckin = null;
+        }
+      }
+    });
+
+    // Handle current ongoing session
+    const now = new Date();
+    if (lastCheckin && activityStatus === 'checked-in') {
+      const duration = differenceInMinutes(now, lastCheckin);
+      if (!isNaN(duration) && duration > 0) {
+        totalWorkMinutes += duration;
+      }
+    } else if (lastBreakStart && (activityStatus === 'break' || activityStatus === 'lunch')) {
+      const duration = differenceInMinutes(now, lastBreakStart);
+      if (!isNaN(duration) && duration > 0) {
+        totalBreakMinutes += duration;
+      }
+    }
+
+    setWorkingTime(totalWorkMinutes);
+    setTotalBreakTime(totalBreakMinutes);
+  }, [activityStatus]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    if (!firebaseUser) return;
 
-    return () => clearInterval(timer);
-  }, []);
+    const statusUnsubscribe = onSnapshot(
+      doc(db, 'monitoring', firebaseUser.uid),
+      (snapshot: DocumentSnapshot) => {
+        const data = snapshot.data() as ActivityDocument | undefined;
+        if (data) {
+          setActivityStatus(data.status || 'checked-out');
+          if (data.lastActionTime) {
+            let lastActionTime: Date;
+            
+            if (data.lastActionTime.toDate) {
+              lastActionTime = data.lastActionTime.toDate();
+            } else {
+              lastActionTime = new Date(data.lastActionTime.seconds * 1000);
+            }
 
-  const handleActivityChange = (activity: string) => {
+            if (data.status === 'checked-in' && !lastCheckIn) {
+              setLastCheckIn(lastActionTime);
+            } else if (data.status === 'break' || data.status === 'lunch') {
+              setBreakStartTime(lastActionTime);
+            }
+          }
+        }
+      }
+    );
+
+    // Get the start of the selected date in local timezone
+    const queryStartDate = startOfDay(selectedDate);
+
+    const logsQuery = query(
+      collection(db, 'activityLogs'),
+      where('userId', '==', firebaseUser.uid),
+      where('timestamp', '>=', Timestamp.fromDate(queryStartDate)),
+      orderBy('timestamp', 'desc')
+    );
+
+    const logsUnsubscribe = onSnapshot(logsQuery, (snapshot: QuerySnapshot) => {
+      const logs = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        let timestamp: Date;
+        
+        if (data.timestamp?.toDate) {
+          timestamp = data.timestamp.toDate();
+        } else if (data.timestamp) {
+          timestamp = new Date(data.timestamp.seconds * 1000);
+        } else {
+          timestamp = new Date(data.createdAt);
+        }
+
+        return {
+          id: doc.id,
+          type: data.status as UserStatus,
+          timestamp
+        };
+      }).filter((log: ActivityLog) => 
+        log.timestamp instanceof Date && !isNaN(log.timestamp.getTime())
+      );
+
+      setActivityLogs(logs); // No need to sort again since Firestore will return them sorted
+      
+      // Only calculate times for today's logs
+      if (isToday(selectedDate)) {
+        calculateWorkingAndBreakTime(logs);
+      } else {
+        setWorkingTime(0);
+        setTotalBreakTime(0);
+      }
+    });
+
+    return () => {
+      statusUnsubscribe();
+      logsUnsubscribe();
+    };
+  }, [firebaseUser, lastCheckIn, calculateWorkingAndBreakTime, selectedDate]);
+
+  const handleActivityChange = async (activity: UserStatus) => {
+    if (!firebaseUser) return;
+
     const timestamp = new Date();
     
+    if (activity === 'checked-in') {
+      setLastCheckIn(timestamp);
+      setCurrentSessionDuration(0);
+      setWorkingTime(0);
+    } else {
+      if (lastCheckIn) {
+        const duration = differenceInMinutes(timestamp, lastCheckIn);
+        if (!isNaN(duration) && duration > 0) {
+          setWorkingTime(prev => prev + duration);
+        }
+      }
+      setLastCheckIn(null);
+      setCurrentSessionDuration(0);
+    }
+
     if (breakStartTime && (activity === 'checked-in' || activity === 'checked-out')) {
       const breakDuration = Math.floor((timestamp.getTime() - breakStartTime.getTime()) / 1000 / 60);
-      setTotalBreakTime(prev => prev + breakDuration);
+      if (!isNaN(breakDuration) && breakDuration > 0) {
+        setTotalBreakTime(prev => prev + breakDuration);
+      }
       setBreakStartTime(null);
+      setCurrentBreakDuration(0);
     }
 
     if (activity === 'break' || activity === 'lunch') {
       setBreakStartTime(timestamp);
+      setCurrentBreakDuration(0);
+      if (lastCheckIn) {
+        const duration = differenceInMinutes(timestamp, lastCheckIn);
+        if (!isNaN(duration) && duration > 0) {
+          setWorkingTime(prev => prev + duration);
+        }
+      }
+      setLastCheckIn(null);
     }
 
-    setActivityStatus(activity);
-    setActivityLogs(prev => [...prev, { type: activity, timestamp }]);
-
-    const savedLogs = JSON.parse(localStorage.getItem('activityLogs') || '[]');
-    localStorage.setItem('activityLogs', JSON.stringify([...savedLogs, { type: activity, timestamp }]));
+    try {
+      switch (activity) {
+        case 'checked-in':
+          await activityService.setUserOnline(firebaseUser);
+          break;
+        case 'checked-out':
+          await activityService.setUserOffline(firebaseUser);
+          break;
+        case 'lunch':
+          await activityService.setUserLunch(firebaseUser);
+          break;
+        case 'break':
+          await activityService.setUserBreak(firebaseUser);
+          break;
+      }
+    } catch (error) {
+      console.error('Error updating activity status:', error);
+    }
   };
 
-  const getStatusColor = (status: string): string => {
+  const getStatusColor = (status: UserStatus): string => {
     switch (status) {
       case 'checked-in':
         return theme.palette.success.main;
@@ -81,7 +291,7 @@ const ActivityMonitor: React.FC = () => {
     }
   };
 
-  const getStatusBgColor = (status: string): string => {
+  const getStatusBgColor = (status: UserStatus): string => {
     switch (status) {
       case 'checked-in':
         return theme.palette.success.light;
@@ -102,7 +312,7 @@ const ActivityMonitor: React.FC = () => {
     return `${hours}h ${mins}m`;
   };
 
-  const getActivityIcon = (type: string) => {
+  const getActivityIcon = (type: UserStatus) => {
     switch (type) {
       case 'checked-in':
         return <CheckInIcon />;
@@ -113,11 +323,11 @@ const ActivityMonitor: React.FC = () => {
       case 'break':
         return <BreakIcon />;
       default:
-        return <CallIcon />;
+        return <CheckOutIcon />;
     }
   };
 
-  const getActivityColor = (type: string) => {
+  const getActivityColor = (type: UserStatus) => {
     switch (type) {
       case 'checked-in':
         return 'success';
@@ -132,49 +342,250 @@ const ActivityMonitor: React.FC = () => {
     }
   };
 
+  const getStatusText = (status: UserStatus): string => {
+    switch (status) {
+      case 'checked-in':
+        return 'Available';
+      case 'checked-out':
+        return 'Offline';
+      case 'lunch':
+        return 'Lunch Break';
+      case 'break':
+        return 'Short Break';
+      default:
+        return 'Offline';
+    }
+  };
+
+  const calculateDailyBreaks = () => {
+    const todayBreaks = activityLogs.filter(log => 
+      (log.type === 'break' || log.type === 'lunch') && 
+      isToday(log.timestamp)
+    );
+    
+    return {
+      totalBreaks: todayBreaks.length,
+      lunchBreaks: todayBreaks.filter(log => log.type === 'lunch').length,
+      shortBreaks: todayBreaks.filter(log => log.type === 'break').length,
+    };
+  };
+
+  const filteredLogs = activityLogs.filter(log => {
+    const matchesStatus = selectedStatus === 'all' || log.type === selectedStatus;
+    const matchesDate = format(log.timestamp, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
+    return matchesStatus && matchesDate;
+  });
+
   return (
     <Paper
       elevation={0}
       sx={{
         p: 3,
         mb: 3,
-        background: 'linear-gradient(to right bottom, #ffffff, #f8fafc)',
+        background: '#ffffff',
         border: `1px solid ${theme.palette.divider}`,
-        transition: 'all 0.3s ease-in-out',
-        '&:hover': {
-          boxShadow: theme.shadows[4],
-          transform: 'translateY(-2px)',
-        },
+        borderRadius: 2,
+        maxHeight: '90vh',
         display: 'flex',
         flexDirection: 'column',
-        height: '100%',
-        overflow: 'hidden'
       }}
     >
-      <Typography
-        variant="h6"
-        gutterBottom
-        sx={{
-          color: theme.palette.text.primary,
-          fontWeight: 600,
-          mb: 3,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1,
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
+          Activity Dashboard
+        </Typography>
+        
+        <Grid container spacing={3} sx={{ mt: 2 }}>
+          {/* Status Card */}
+          <Grid item xs={12} md={3}>
+            <Card 
+              elevation={0}
+              sx={{
+                p: 3,
+                height: '100%',
+                border: `1px solid ${theme.palette.divider}`,
+                background: '#ffffff',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: theme.shadows[2],
+                }
+              }}
+            >
+              <Stack spacing={2}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Current Status
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  {getActivityIcon(activityStatus)}
+                  <Typography variant="h6" sx={{ color: getStatusColor(activityStatus), fontWeight: 600 }}>
+                    {getStatusText(activityStatus)}
+                  </Typography>
+                </Box>
+                {(activityStatus === 'break' || activityStatus === 'lunch') && (
+                  <Box sx={{ 
+                    p: 1, 
+                    borderRadius: 1, 
+                    bgcolor: 'rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <ClockIcon fontSize="small" />
+                    <Typography variant="body2">
+                      Current: {formatDuration(currentBreakDuration)}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Card>
+          </Grid>
+
+          {/* Time Tracking Card */}
+          <Grid item xs={12} md={3}>
+            <Card 
+              elevation={0}
+              sx={{
+                p: 3,
+                height: '100%',
+                border: `1px solid ${theme.palette.divider}`,
+                background: '#ffffff',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: theme.shadows[2],
+                }
+              }}
+            >
+              <Stack spacing={2}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Working Time
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <TimerIcon color="success" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    {formatDuration(workingTime)}
+                  </Typography>
+                </Box>
+                {activityStatus === 'checked-in' && (
+                  <Box sx={{ 
+                    p: 1, 
+                    borderRadius: 1, 
+                    bgcolor: 'rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <ClockIcon fontSize="small" />
+                    <Typography variant="body2">
+                      Session: {formatDuration(currentSessionDuration)}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Card>
+          </Grid>
+
+          {/* Break Summary Card */}
+          <Grid item xs={12} md={3}>
+            <Card 
+              elevation={0}
+              sx={{
+                p: 3,
+                height: '100%',
+                border: `1px solid ${theme.palette.divider}`,
+                background: '#ffffff',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: theme.shadows[2],
+                }
+              }}
+            >
+              <Stack spacing={2}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Break Summary
+                </Typography>
+                <Stack spacing={1}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <LunchIcon color="warning" />
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      Lunch Breaks: {calculateDailyBreaks().lunchBreaks}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <BreakIcon color="warning" />
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      Short Breaks: {calculateDailyBreaks().shortBreaks}
+                    </Typography>
+                  </Box>
+                </Stack>
+              </Stack>
+            </Card>
+          </Grid>
+
+          {/* Break Time Card */}
+          <Grid item xs={12} md={3}>
+            <Card 
+              elevation={0}
+              sx={{
+                p: 3,
+                height: '100%',
+                border: `1px solid ${theme.palette.divider}`,
+                background: '#ffffff',
+                transition: 'all 0.3s ease',
+                '&:hover': {
+                  boxShadow: theme.shadows[2],
+                }
+              }}
+            >
+              <Stack spacing={2}>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Break Time
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <TimerIcon color="info" />
+                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                    {formatDuration(totalBreakTime)}
+                  </Typography>
+                </Box>
+                {(activityStatus === 'break' || activityStatus === 'lunch') && (
+                  <Box sx={{ 
+                    p: 1, 
+                    borderRadius: 1, 
+                    bgcolor: 'rgba(0,0,0,0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    <ClockIcon fontSize="small" />
+                    <Typography variant="body2">
+                      Current: {formatDuration(currentBreakDuration)}
+                    </Typography>
+                  </Box>
+                )}
+              </Stack>
+            </Card>
+          </Grid>
+        </Grid>
+      </Box>
+
+      {/* Action Buttons */}
+      <Stack 
+        direction={{ xs: 'column', sm: 'row' }} 
+        spacing={2} 
+        sx={{ 
+          mb: 4,
+          flexWrap: 'wrap',
+          justifyContent: 'center'
         }}
       >
-        <ClockIcon sx={{ color: theme.palette.primary.main }} />
-        Activity Monitor
-      </Typography>
-
-      <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
         <Button
           variant={activityStatus === 'checked-in' ? 'contained' : 'outlined'}
           startIcon={<CheckInIcon />}
           onClick={() => handleActivityChange('checked-in')}
           color="success"
+          size="large"
           sx={{
-            minWidth: 120,
+            minWidth: 150,
+            py: 1.5,
             transition: 'all 0.2s ease-in-out',
             transform: activityStatus === 'checked-in' ? 'scale(1.05)' : 'scale(1)',
           }}
@@ -186,8 +597,10 @@ const ActivityMonitor: React.FC = () => {
           startIcon={<CheckOutIcon />}
           onClick={() => handleActivityChange('checked-out')}
           color="error"
+          size="large"
           sx={{
-            minWidth: 120,
+            minWidth: 150,
+            py: 1.5,
             transition: 'all 0.2s ease-in-out',
             transform: activityStatus === 'checked-out' ? 'scale(1.05)' : 'scale(1)',
           }}
@@ -199,80 +612,145 @@ const ActivityMonitor: React.FC = () => {
           startIcon={<LunchIcon />}
           onClick={() => handleActivityChange('lunch')}
           color="warning"
+          size="large"
           sx={{
-            minWidth: 120,
+            minWidth: 150,
+            py: 1.5,
             transition: 'all 0.2s ease-in-out',
             transform: activityStatus === 'lunch' ? 'scale(1.05)' : 'scale(1)',
           }}
         >
-          Lunch
+          Lunch Break
         </Button>
         <Button
           variant={activityStatus === 'break' ? 'contained' : 'outlined'}
           startIcon={<BreakIcon />}
           onClick={() => handleActivityChange('break')}
           color="info"
+          size="large"
           sx={{
-            minWidth: 120,
+            minWidth: 150,
+            py: 1.5,
             transition: 'all 0.2s ease-in-out',
             transform: activityStatus === 'break' ? 'scale(1.05)' : 'scale(1)',
           }}
         >
-          Break
+          Short Break
         </Button>
       </Stack>
 
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-          Current Status
-        </Typography>
-        <Chip
-          label={activityStatus.replace('-', ' ').toUpperCase()}
-          sx={{
-            backgroundColor: getStatusBgColor(activityStatus),
-            color: getStatusColor(activityStatus),
-            fontWeight: 600,
-            transition: 'all 0.2s ease-in-out',
-            '&:hover': {
-              transform: 'translateY(-1px)',
-              boxShadow: theme.shadows[2],
-            },
-          }}
-        />
-      </Box>
-
-      <Divider sx={{ my: 2 }} />
-
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
-        <List sx={{ pt: 0 }}>
-          {activityLogs.slice(-5).reverse().map((log, index) => (
-            <React.Fragment key={index}>
-              {index > 0 && <Divider variant="inset" component="li" />}
-              <ListItem alignItems="flex-start">
-                <ListItemAvatar>
-                  <Avatar sx={{ bgcolor: `${getActivityColor(log.type)}.light` }}>
-                    {getActivityIcon(log.type)}
-                  </Avatar>
-                </ListItemAvatar>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography variant="subtitle1">
-                        {log.type.toUpperCase()}
-                      </Typography>
-                      <Chip
-                        label={format(new Date(log.timestamp), 'HH:mm:ss')}
-                        size="small"
-                        color={getActivityColor(log.type) as any}
-                        variant="outlined"
-                      />
-                    </Box>
+      {/* Activity History with Filters */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h6" sx={{ color: theme.palette.text.secondary }}>
+            Activity History
+          </Typography>
+          <Stack direction="row" spacing={2}>
+            <LocalizationProvider dateAdapter={AdapterDateFns}>
+              <DatePicker
+                label="Select Date"
+                value={selectedDate}
+                onChange={(newValue) => setSelectedDate(newValue || new Date())}
+                slotProps={{
+                  textField: {
+                    size: "small"
                   }
-                />
-              </ListItem>
-            </React.Fragment>
-          ))}
-        </List>
+                }}
+              />
+            </LocalizationProvider>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={selectedStatus}
+                label="Status"
+                onChange={(e) => setSelectedStatus(e.target.value)}
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="checked-in">Available</MenuItem>
+                <MenuItem value="checked-out">Offline</MenuItem>
+                <MenuItem value="lunch">Lunch Break</MenuItem>
+                <MenuItem value="break">Short Break</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+        </Box>
+        <Card 
+          elevation={0}
+          sx={{ 
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            maxHeight: 400,
+            border: `1px solid ${theme.palette.divider}`,
+          }}
+        >
+          <List 
+            sx={{ 
+              p: 0,
+              overflow: 'auto',
+              flexGrow: 1,
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-track': {
+                background: '#f8f9fa',
+                borderRadius: '4px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                background: '#dee2e6',
+                borderRadius: '4px',
+                '&:hover': {
+                  background: '#ced4da',
+                },
+              },
+            }}
+          >
+            {filteredLogs.map((log, index) => (
+              <React.Fragment key={index}>
+                {index > 0 && <Divider />}
+                <ListItem
+                  sx={{
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      bgcolor: 'rgba(0, 0, 0, 0.02)',
+                    },
+                  }}
+                >
+                  <ListItemAvatar>
+                    <Avatar 
+                      sx={{ 
+                        bgcolor: `${getActivityColor(log.type)}.light`,
+                        color: getActivityColor(log.type),
+                      }}
+                    >
+                      {getActivityIcon(log.type)}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                          {getStatusText(log.type)}
+                        </Typography>
+                        <Chip
+                          label={format(log.timestamp, 'HH:mm:ss')}
+                          size="small"
+                          color={getActivityColor(log.type) as any}
+                          variant="outlined"
+                          sx={{ fontWeight: 500 }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {format(log.timestamp, 'dd/MM/yyyy')}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </ListItem>
+              </React.Fragment>
+            ))}
+          </List>
+        </Card>
       </Box>
     </Paper>
   );

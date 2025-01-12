@@ -35,7 +35,7 @@ const knowledgeBaseSchema = new Schema<IKnowledgeBase>({
   },
 });
 
-knowledgeBaseSchema.pre('save', function(next) {
+knowledgeBaseSchema.pre('save', function(this: IKnowledgeBase, next: mongoose.CallbackWithoutResultAndOptionalError) {
   this.updatedAt = new Date();
   next();
 });

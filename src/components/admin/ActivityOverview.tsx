@@ -3,202 +3,254 @@ import {
   Box,
   Paper,
   Typography,
-  Grid,
-  Card,
-  CardContent,
-  Chip,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Chip,
+  Avatar,
+  Stack,
   IconButton,
   Tooltip,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import {
-  CheckCircle as OnlineIcon,
-  Cancel as OfflineIcon,
+  Refresh as RefreshIcon,
+  PlayArrow as CheckInIcon,
+  Stop as CheckOutIcon,
+  Restaurant as LunchIcon,
   Coffee as BreakIcon,
-  AccessTime as ClockIcon,
-  Info as InfoIcon,
+  MoreVert as MoreIcon,
 } from '@mui/icons-material';
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import type { QuerySnapshot, DocumentData, QueryDocumentSnapshot } from '@firebase/firestore-types';
+import { db } from '../../firebase';
 import { format } from 'date-fns';
+import { useAuth } from '../../contexts/AuthContext';
+import { activityService, UserStatus } from '../../services/activityService';
 
-interface AgentActivity {
-  id: string;
-  name: string;
-  status: 'online' | 'offline' | 'break' | 'lunch';
-  lastActive: string;
-  totalHoursToday: number;
-  breakTime: number;
-}
-
-interface ActivityLog {
-  id: string;
-  agentName: string;
-  action: string;
-  timestamp: string;
+interface UserActivity {
+  userId: string;
+  userName: string;
+  status: UserStatus;
+  lastActionTime: Date;
+  currentTask?: string;
+  email: string;
+  avatarUrl?: string;
 }
 
 const ActivityOverview: React.FC = () => {
-  const [agents, setAgents] = useState<AgentActivity[]>([]);
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activities, setActivities] = useState<UserActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const { firebaseUser } = useAuth();
 
   useEffect(() => {
-    // TODO: Replace with actual API calls
-    const mockAgents: AgentActivity[] = [
-      {
-        id: '1',
-        name: 'John Doe',
-        status: 'online',
-        lastActive: new Date().toISOString(),
-        totalHoursToday: 6.5,
-        breakTime: 45,
-      },
-      {
-        id: '2',
-        name: 'Jane Smith',
-        status: 'break',
-        lastActive: new Date().toISOString(),
-        totalHoursToday: 4,
-        breakTime: 30,
-      },
-    ];
+    const q = query(
+      collection(db, 'monitoring'),
+      orderBy('lastActionTime', 'desc'),
+      limit(50)
+    );
 
-    const mockLogs: ActivityLog[] = [
-      {
-        id: '1',
-        agentName: 'John Doe',
-        action: 'Checked in',
-        timestamp: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        agentName: 'Jane Smith',
-        action: 'Started break',
-        timestamp: new Date().toISOString(),
-      },
-    ];
+    const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+      const activityData: UserActivity[] = [];
+      snapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
+        const data = doc.data();
+        activityData.push({
+          userId: doc.id,
+          userName: data.userName || 'Unknown User',
+          status: data.status,
+          lastActionTime: data.lastActionTime?.toDate() || new Date(),
+          currentTask: data.currentTask,
+          email: data.email || '',
+          avatarUrl: data.avatarUrl,
+        });
+      });
+      setActivities(activityData);
+      setLoading(false);
+    }, (error: Error) => {
+      console.error('Error fetching activities:', error);
+      setLoading(false);
+    });
 
-    setAgents(mockAgents);
-    setActivityLogs(mockLogs);
+    return () => unsubscribe();
   }, []);
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: UserStatus) => {
     switch (status) {
-      case 'online':
-        return <OnlineIcon color="success" />;
-      case 'offline':
-        return <OfflineIcon color="error" />;
-      case 'break':
+      case 'checked-in':
+        return <CheckInIcon sx={{ color: 'success.main' }} />;
+      case 'checked-out':
+        return <CheckOutIcon sx={{ color: 'error.main' }} />;
       case 'lunch':
-        return <BreakIcon color="warning" />;
+        return <LunchIcon sx={{ color: 'warning.main' }} />;
+      case 'break':
+        return <BreakIcon sx={{ color: 'info.main' }} />;
       default:
-        return null;
+        return <CheckOutIcon sx={{ color: 'error.main' }} />;
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: UserStatus) => {
     switch (status) {
-      case 'online':
+      case 'checked-in':
         return 'success';
-      case 'offline':
+      case 'checked-out':
         return 'error';
-      case 'break':
       case 'lunch':
         return 'warning';
+      case 'break':
+        return 'info';
       default:
-        return 'default';
+        return 'error';
     }
+  };
+
+  const getStatusText = (status: UserStatus): string => {
+    switch (status) {
+      case 'checked-in':
+        return 'Available';
+      case 'checked-out':
+        return 'Offline';
+      case 'lunch':
+        return 'Lunch Break';
+      case 'break':
+        return 'Short Break';
+      default:
+        return 'Offline';
+    }
+  };
+
+  const handleRefresh = () => {
+    setLoading(true);
+  };
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, userId: string) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedUserId(userId);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedUserId(null);
+  };
+
+  const handleStatusChange = async (status: UserStatus) => {
+    if (firebaseUser && selectedUserId === firebaseUser.uid) {
+      switch (status) {
+        case 'checked-in':
+          await activityService.setUserOnline(firebaseUser);
+          break;
+        case 'checked-out':
+          await activityService.setUserOffline(firebaseUser);
+          break;
+        case 'lunch':
+          await activityService.setUserLunch(firebaseUser);
+          break;
+        case 'break':
+          await activityService.setUserBreak(firebaseUser);
+          break;
+      }
+    }
+    handleMenuClose();
   };
 
   return (
     <Box>
-      <Grid container spacing={3}>
-        {/* Current Status Section */}
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>
-            Current Status
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Agent</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Last Active</TableCell>
-                  <TableCell>Hours Today</TableCell>
-                  <TableCell>Break Time</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {agents.map((agent) => (
-                  <TableRow key={agent.id}>
-                    <TableCell>{agent.name}</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {getStatusIcon(agent.status)}
-                        <Chip
-                          label={agent.status}
-                          size="small"
-                          color={getStatusColor(agent.status) as any}
-                        />
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(agent.lastActive), 'HH:mm')}
-                    </TableCell>
-                    <TableCell>
-                      {agent.totalHoursToday.toFixed(1)} hrs
-                    </TableCell>
-                    <TableCell>
-                      {agent.breakTime} min
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip title="View Details">
-                        <IconButton size="small">
-                          <InfoIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Grid>
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h6">Real-Time Activity Monitor</Typography>
+        <Tooltip title="Refresh">
+          <IconButton onClick={handleRefresh} disabled={loading}>
+            <RefreshIcon />
+          </IconButton>
+        </Tooltip>
+      </Box>
 
-        {/* Activity Log Section */}
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>
-            Activity Log
-          </Typography>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Agent</TableCell>
-                  <TableCell>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {activityLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell>
-                      {format(new Date(log.timestamp), 'HH:mm')}
-                    </TableCell>
-                    <TableCell>{log.agentName}</TableCell>
-                    <TableCell>{log.action}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Grid>
-      </Grid>
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>User</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Current Task</TableCell>
+              <TableCell>Last Active</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {activities.map((activity) => (
+              <TableRow key={activity.userId}>
+                <TableCell>
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar src={activity.avatarUrl} alt={activity.userName}>
+                      {activity.userName.charAt(0)}
+                    </Avatar>
+                    <Box>
+                      <Typography variant="subtitle2">{activity.userName}</Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {activity.email}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    icon={getStatusIcon(activity.status)}
+                    label={getStatusText(activity.status)}
+                    size="small"
+                    color={getStatusColor(activity.status) as any}
+                    sx={{ 
+                      textTransform: 'capitalize',
+                      fontWeight: 'medium',
+                      fontSize: '0.875rem',
+                      padding: '4px 8px'
+                    }}
+                  />
+                </TableCell>
+                <TableCell>
+                  {activity.currentTask || 'No active task'}
+                </TableCell>
+                <TableCell>
+                  {format(activity.lastActionTime, 'HH:mm:ss')}
+                </TableCell>
+                <TableCell align="right">
+                  {activity.userId === firebaseUser?.uid && (
+                    <IconButton
+                      size="small"
+                      onClick={(e) => handleMenuOpen(e, activity.userId)}
+                    >
+                      <MoreIcon />
+                    </IconButton>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+      >
+        <MenuItem onClick={() => handleStatusChange('checked-in')}>
+          <CheckInIcon sx={{ mr: 1, color: 'success.main' }} /> Available
+        </MenuItem>
+        <MenuItem onClick={() => handleStatusChange('lunch')}>
+          <LunchIcon sx={{ mr: 1, color: 'warning.main' }} /> Lunch Break
+        </MenuItem>
+        <MenuItem onClick={() => handleStatusChange('break')}>
+          <BreakIcon sx={{ mr: 1, color: 'info.main' }} /> Short Break
+        </MenuItem>
+        <MenuItem onClick={() => handleStatusChange('checked-out')}>
+          <CheckOutIcon sx={{ mr: 1, color: 'error.main' }} /> Offline
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };
