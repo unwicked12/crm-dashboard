@@ -13,9 +13,7 @@ import AgentScheduleView from './components/dashboard/AgentScheduleView';
 import HolidayRequest from './components/dashboard/HolidayRequest';
 import SaturdayAvailability from './components/dashboard/SaturdayAvailability';
 import KnowledgeBase from './components/knowledgeBase/KnowledgeBase';
-import ArticleApproval from './components/knowledgeBase/ArticleApproval';
 import AdminDashboard from './components/admin/AdminDashboard';
-import RequestManagement from './components/admin/RequestManagement';
 import UserManagement from './components/admin/UserManagement';
 import UserTierManagement from './components/admin/UserTierManagement';
 import HRDashboard from './components/hr/HRDashboard';
@@ -23,6 +21,8 @@ import ManagerDashboard from './components/manager/ManagerDashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AdminRoute from './components/routes/AdminRoute';
 import ManagerRoute from './components/routes/ManagerRoute';
+import PrivateRoute from './components/routes/PrivateRoute';
+import HRRoute from './components/routes/HRRoute';
 
 // Protected Route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -34,25 +34,6 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   
   if (!user) {
     return <Navigate to="/login" replace />;
-  }
-  
-  return <>{children}</>;
-};
-
-// HR Route component
-const HRRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-  
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  if (user.role !== 'hr' && user.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
   }
   
   return <>{children}</>;
