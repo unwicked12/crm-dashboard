@@ -1,14 +1,14 @@
 {
   "files": {
     "main.css": "/crm-dashboard/static/css/main.1cad1357.css",
-    "main.js": "/crm-dashboard/static/js/main.198e81f8.js",
+    "main.js": "/crm-dashboard/static/js/main.e15384ff.js",
     "static/js/239.f0627ee8.chunk.js": "/crm-dashboard/static/js/239.f0627ee8.chunk.js",
     "static/js/644.4da58108.chunk.js": "/crm-dashboard/static/js/644.4da58108.chunk.js",
     "static/js/51.c520745f.chunk.js": "/crm-dashboard/static/js/51.c520745f.chunk.js",
     "static/js/453.2820e4e1.chunk.js": "/crm-dashboard/static/js/453.2820e4e1.chunk.js",
     "index.html": "/crm-dashboard/index.html",
     "main.1cad1357.css.map": "/crm-dashboard/static/css/main.1cad1357.css.map",
-    "main.198e81f8.js.map": "/crm-dashboard/static/js/main.198e81f8.js.map",
+    "main.e15384ff.js.map": "/crm-dashboard/static/js/main.e15384ff.js.map",
     "239.f0627ee8.chunk.js.map": "/crm-dashboard/static/js/239.f0627ee8.chunk.js.map",
     "644.4da58108.chunk.js.map": "/crm-dashboard/static/js/644.4da58108.chunk.js.map",
     "51.c520745f.chunk.js.map": "/crm-dashboard/static/js/51.c520745f.chunk.js.map",
@@ -16,6 +16,6 @@
   },
   "entrypoints": [
     "static/css/main.1cad1357.css",
-    "static/js/main.198e81f8.js"
+    "static/js/main.e15384ff.js"
   ]
 }
