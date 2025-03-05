@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '../firebase';
 import { 
   collection, 
@@ -5,169 +6,207 @@ import {
   query, 
   where, 
   orderBy, 
-  getDocs, 
+  getDocs,
   updateDoc,
   doc,
-  serverTimestamp,
-  Timestamp,
   getDoc,
-  deleteDoc,
-  limit,
-  DocumentSnapshot,
-  DocumentData,
-  QueryDocumentSnapshot
+  Timestamp
 } from 'firebase/firestore';
+import type { 
+  DocumentSnapshot, 
+  QueryDocumentSnapshot 
+} from 'firebase/firestore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { getAuth } from 'firebase/auth';
-import { httpsCallable, getFunctions } from 'firebase/functions';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { User, UserRole } from './userService';
 
+// Collection name
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const COLLECTION_NAME = 'notifications';
+
+// Notification types
 export type NotificationType = 
-  | 'article_approval_request' 
-  | 'article_approved' 
-  | 'article_rejected' 
+  | 'article_approval' 
   | 'holiday_request' 
-  | 'holiday_approved' 
-  | 'holiday_rejected'
-  | 'task_assigned'
-  | 'task_completed';
+  | 'task_assignment' 
+  | 'faq_response';
 
+// Notification interface
 export interface Notification {
   id?: string;
   type: NotificationType;
+  recipientId: string;
+  senderId: string;
+  senderName: string;
   title: string;
   message: string;
-  recipientId: string;
-  senderId?: string;
-  senderName?: string;
+  data: Record<string, any>;
   read: boolean;
   createdAt: Date;
-  relatedItemId?: string;
-  relatedItemType?: 'article' | 'holiday' | 'task';
-  link?: string;
 }
 
-const COLLECTION_NAME = 'notifications';
-
-// Helper function to ensure user is authenticated
+// Ensure user is authenticated
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ensureAuth = () => {
-  const auth = getAuth();
-  if (!auth.currentUser) {
+  const user = getAuth().currentUser;
+  if (!user) {
     throw new Error('User must be authenticated');
   }
-  return auth.currentUser;
+  return user;
 };
 
-// Helper function to get user data
-const getUserData = async (userId: string) => {
+// Helper function to get user's full name
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const getUserFullName = async (userId: string): Promise<string> => {
   const userDoc = await getDoc(doc(db, 'users', userId));
   if (!userDoc.exists()) {
+    console.error('User document not found');
     throw new Error('User not found');
   }
-  return userDoc.data();
+  const userData = userDoc.data();
+  return userData.name || 'Unknown User';
 };
 
+// Helper function to get users by role
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const getUsersByRole = async (role: UserRole): Promise<User[]> => {
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, where('role', '==', role));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map((doc: any) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      tier: data.tier,
+      capabilities: data.capabilities,
+      schedule: data.schedule
+    } as User;
+  });
+};
+
+// Notification converter
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const notificationConverter = {
+  toFirestore: (notification: Notification) => {
+    return {
+      type: notification.type,
+      recipientId: notification.recipientId,
+      senderId: notification.senderId,
+      senderName: notification.senderName,
+      title: notification.title,
+      message: notification.message,
+      data: notification.data,
+      read: notification.read,
+      createdAt: Timestamp.fromDate(notification.createdAt)
+    };
+  },
+  fromFirestore: (snapshot: any, options?: any) => {
+    const data = snapshot.data(options);
+    return {
+      id: snapshot.id,
+      type: data.type,
+      recipientId: data.recipientId,
+      senderId: data.senderId,
+      senderName: data.senderName,
+      title: data.title,
+      message: data.message,
+      data: data.data,
+      read: data.read,
+      createdAt: data.createdAt.toDate()
+    } as Notification;
+  }
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const notificationService = {
-  // Create a new notification
-  createNotification: async (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<string> => {
+  // Create a notification
+  createNotification: async (
+    recipientId: string,
+    type: NotificationType,
+    title: string,
+    message: string,
+    data: Record<string, any> = {}
+  ): Promise<Notification> => {
     try {
       const user = ensureAuth();
+      const senderName = await getUserFullName(user.uid);
       
-      // Set sender information if not provided
-      const senderInfo = notification.senderId ? {} : {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const notificationData: Omit<Notification, 'id'> = {
+        type,
+        recipientId,
         senderId: user.uid,
-        senderName: user.displayName || 'Unknown User'
-      };
-      
-      const notificationData = {
-        ...notification,
-        ...senderInfo,
+        senderName,
+        title,
+        message,
+        data,
         read: false,
-        createdAt: serverTimestamp()
+        createdAt: new Date()
       };
       
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), notificationData);
+      const notificationsRef = collection(db, COLLECTION_NAME).withConverter(notificationConverter);
+      const docRef = await addDoc(notificationsRef, notificationData);
       
-      // Try to send email notification
-      try {
-        await notificationService.sendEmailNotification(notification);
-      } catch (error) {
-        console.error('Failed to send email notification:', error);
-        // Continue even if email fails
-      }
-      
-      return docRef.id;
+      return {
+        ...notificationData,
+        id: docRef.id
+      };
     } catch (error) {
       console.error('Error creating notification:', error);
       throw error;
     }
   },
   
-  // Get notifications for the current user
-  getUserNotifications: async (unreadOnly = false, maxResults = 50): Promise<Notification[]> => {
+  // Get notifications for current user
+  getUserNotifications: async (unreadOnly: boolean = false): Promise<Notification[]> => {
     try {
       const user = ensureAuth();
+      const notificationsRef = collection(db, COLLECTION_NAME).withConverter(notificationConverter);
       
       let q;
-      
       if (unreadOnly) {
-        // Query for unread notifications
         q = query(
-          collection(db, COLLECTION_NAME),
+          notificationsRef,
           where('recipientId', '==', user.uid),
           where('read', '==', false),
-          orderBy('createdAt', 'desc'),
-          limit(maxResults)
+          orderBy('createdAt', 'desc')
         );
       } else {
-        // Query for all notifications
         q = query(
-          collection(db, COLLECTION_NAME),
+          notificationsRef,
           where('recipientId', '==', user.uid),
-          orderBy('createdAt', 'desc'),
-          limit(maxResults)
+          orderBy('createdAt', 'desc')
         );
       }
       
       const querySnapshot = await getDocs(q);
-      
-      return querySnapshot.docs.map((docSnapshot) => {
-        const data = docSnapshot.data();
-        return {
-          id: docSnapshot.id,
-          type: data.type,
-          title: data.title,
-          message: data.message,
-          recipientId: data.recipientId,
-          senderId: data.senderId,
-          senderName: data.senderName,
-          read: data.read,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          relatedItemId: data.relatedItemId,
-          relatedItemType: data.relatedItemType,
-          link: data.link
-        };
-      });
+      return querySnapshot.docs.map((doc: any) => notificationConverter.fromFirestore(doc));
     } catch (error) {
-      console.error('Error getting notifications:', error);
+      console.error('Error getting user notifications:', error);
       throw error;
     }
   },
   
-  // Mark a notification as read
+  // Mark notification as read
   markAsRead: async (notificationId: string): Promise<void> => {
     try {
       const user = ensureAuth();
+      const notificationRef = doc(db, COLLECTION_NAME, notificationId);
       
       // Verify the notification belongs to the user
-      const notificationRef = doc(db, COLLECTION_NAME, notificationId);
       const notificationDoc = await getDoc(notificationRef);
-      
       if (!notificationDoc.exists()) {
         throw new Error('Notification not found');
       }
       
-      const notificationData = notificationDoc.data();
-      if (notificationData.recipientId !== user.uid) {
-        throw new Error('You do not have permission to update this notification');
+      const notification = notificationDoc.data();
+      if (notification.recipientId !== user.uid) {
+        throw new Error('Unauthorized access to notification');
       }
       
       await updateDoc(notificationRef, {
@@ -179,267 +218,75 @@ export const notificationService = {
     }
   },
   
-  // Mark all notifications as read
-  markAllAsRead: async (): Promise<void> => {
+  // Create article approval notification for admins
+  notifyAdminsOfNewArticle: async (articleId: string, articleTitle: string): Promise<void> => {
     try {
       const user = ensureAuth();
       
-      const q = query(
-        collection(db, COLLECTION_NAME),
-        where('recipientId', '==', user.uid),
-        where('read', '==', false)
+      // Get all admin users
+      const adminUsers = await getUsersByRole('admin');
+      
+      // Create a notification for each admin
+      const promises = adminUsers.map(admin => 
+        notificationService.createNotification(
+          admin.id,
+          'article_approval',
+          'New Article Pending Approval',
+          `A new article "${articleTitle}" requires your approval.`,
+          {
+            articleId,
+            articleTitle,
+            status: 'pending',
+            authorId: user.uid,
+            authorName: user.displayName || 'Unknown User'
+          }
+        )
       );
       
-      const querySnapshot = await getDocs(q);
-      
-      const updatePromises = querySnapshot.docs.map((docSnapshot) => 
-        updateDoc(docSnapshot.ref, { read: true })
-      );
-      
-      await Promise.all(updatePromises);
+      await Promise.all(promises);
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error('Error notifying admins of new article:', error);
       throw error;
     }
   },
   
-  // Delete a notification
-  deleteNotification: async (notificationId: string): Promise<void> => {
-    try {
-      const user = ensureAuth();
-      
-      // Verify the notification belongs to the user
-      const notificationRef = doc(db, COLLECTION_NAME, notificationId);
-      const notificationDoc = await getDoc(notificationRef);
-      
-      if (!notificationDoc.exists()) {
-        throw new Error('Notification not found');
-      }
-      
-      const notificationData = notificationDoc.data();
-      if (notificationData.recipientId !== user.uid) {
-        throw new Error('You do not have permission to delete this notification');
-      }
-      
-      await deleteDoc(notificationRef);
-    } catch (error) {
-      console.error('Error deleting notification:', error);
-      throw error;
-    }
-  },
-  
-  // Get unread notification count for the current user
-  getUnreadCount: async (): Promise<number> => {
-    try {
-      const user = ensureAuth();
-      
-      const q = query(
-        collection(db, COLLECTION_NAME),
-        where('recipientId', '==', user.uid),
-        where('read', '==', false)
-      );
-      
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.size;
-    } catch (error) {
-      console.error('Error getting unread count:', error);
-      throw error;
-    }
-  },
-  
-  // Send email notification using Cloud Functions
-  sendEmailNotification: async (notification: Omit<Notification, 'id' | 'createdAt' | 'read'>): Promise<void> => {
-    try {
-      // Get recipient data to get their email
-      const recipientData = await getUserData(notification.recipientId);
-      const recipientEmail = recipientData.email;
-      
-      if (!recipientEmail) {
-        throw new Error('Recipient email not found');
-      }
-      
-      // Use Cloud Functions to send email
-      const functions = getFunctions();
-      const sendEmail = httpsCallable(functions, 'sendEmailNotification');
-      
-      await sendEmail({
-        email: recipientEmail,
-        subject: notification.title,
-        message: notification.message,
-        type: notification.type,
-        link: notification.link || ''
-      });
-    } catch (error) {
-      console.error('Error sending email notification:', error);
-      throw error;
-    }
-  },
-  
-  // Create article approval request notification
-  createArticleApprovalRequest: async (articleId: string, articleTitle: string, authorId: string, authorName: string): Promise<void> => {
-    try {
-      // Find admin users to notify
-      const q = query(
-        collection(db, 'users'),
-        where('role', '==', 'admin')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      
-      const notificationPromises = querySnapshot.docs.map((docSnapshot) => {
-        const adminId = docSnapshot.id;
-        
-        return notificationService.createNotification({
-          type: 'article_approval_request',
-          title: 'Nouvel article à approuver',
-          message: `${authorName} a soumis un nouvel article "${articleTitle}" qui nécessite votre approbation.`,
-          recipientId: adminId,
-          senderId: authorId,
-          senderName: authorName,
-          relatedItemId: articleId,
-          relatedItemType: 'article',
-          link: `/knowledge-base?article=${articleId}`
-        });
-      });
-      
-      await Promise.all(notificationPromises);
-    } catch (error) {
-      console.error('Error creating article approval notifications:', error);
-      throw error;
-    }
-  },
-  
-  // Create article status update notification
-  createArticleStatusNotification: async (
+  // Notify article author of approval status change
+  notifyAuthorOfApprovalStatus: async (
+    authorId: string, 
     articleId: string, 
     articleTitle: string, 
-    authorId: string, 
     status: 'approved' | 'rejected',
-    rejectionReason?: string
+    message: string = ''
   ): Promise<void> => {
     try {
       const user = ensureAuth();
-      const adminName = user.displayName || 'Admin';
       
       const title = status === 'approved' 
-        ? 'Article approuvé' 
-        : 'Article rejeté';
-        
-      const message = status === 'approved'
-        ? `Votre article "${articleTitle}" a été approuvé par ${adminName}.`
-        : `Votre article "${articleTitle}" a été rejeté par ${adminName}. Raison: ${rejectionReason || 'Non spécifiée'}`;
+        ? 'Article Approved' 
+        : 'Article Rejected';
       
-      await notificationService.createNotification({
-        type: status === 'approved' ? 'article_approved' : 'article_rejected',
+      const defaultMessage = status === 'approved'
+        ? `Your article "${articleTitle}" has been approved and is now visible to users.`
+        : `Your article "${articleTitle}" has been rejected.`;
+      
+      await notificationService.createNotification(
+        authorId,
+        'article_approval',
         title,
-        message,
-        recipientId: authorId,
-        senderId: user.uid,
-        senderName: adminName,
-        relatedItemId: articleId,
-        relatedItemType: 'article',
-        link: `/knowledge-base?article=${articleId}`
-      });
-    } catch (error) {
-      console.error('Error creating article status notification:', error);
-      throw error;
-    }
-  },
-  
-  // Create holiday request notification
-  createHolidayRequestNotification: async (
-    requestId: string,
-    startDate: Date,
-    endDate: Date,
-    userId: string,
-    userName: string
-  ): Promise<void> => {
-    try {
-      // Find HR users to notify
-      const q = query(
-        collection(db, 'users'),
-        where('role', '==', 'hr')
+        message || defaultMessage,
+        {
+          articleId,
+          articleTitle,
+          status,
+          reviewerId: user.uid,
+          reviewerName: user.displayName || 'Admin'
+        }
       );
-      
-      const querySnapshot = await getDocs(q);
-      
-      const startDateStr = startDate.toLocaleDateString();
-      const endDateStr = endDate.toLocaleDateString();
-      
-      const notificationPromises = querySnapshot.docs.map((docSnapshot) => {
-        const hrId = docSnapshot.id;
-        
-        return notificationService.createNotification({
-          type: 'holiday_request',
-          title: 'Nouvelle demande de congé',
-          message: `${userName} a soumis une demande de congé du ${startDateStr} au ${endDateStr}.`,
-          recipientId: hrId,
-          senderId: userId,
-          senderName: userName,
-          relatedItemId: requestId,
-          relatedItemType: 'holiday',
-          link: `/hr/leaves?request=${requestId}`
-        });
-      });
-      
-      await Promise.all(notificationPromises);
     } catch (error) {
-      console.error('Error creating holiday request notifications:', error);
-      throw error;
-    }
-  },
-  
-  // Create task assignment notification
-  createTaskAssignmentNotification: async (
-    taskId: string,
-    taskTitle: string,
-    assigneeId: string,
-    assignerId: string,
-    assignerName: string
-  ): Promise<void> => {
-    try {
-      await notificationService.createNotification({
-        type: 'task_assigned',
-        title: 'Nouvelle tâche assignée',
-        message: `${assignerName} vous a assigné une nouvelle tâche: "${taskTitle}".`,
-        recipientId: assigneeId,
-        senderId: assignerId,
-        senderName: assignerName,
-        relatedItemId: taskId,
-        relatedItemType: 'task',
-        link: `/dashboard?task=${taskId}`
-      });
-    } catch (error) {
-      console.error('Error creating task assignment notification:', error);
-      throw error;
-    }
-  },
-  
-  // Create task completion notification
-  createTaskCompletionNotification: async (
-    taskId: string,
-    taskTitle: string,
-    assigneeId: string,
-    assigneeName: string,
-    assignerId: string
-  ): Promise<void> => {
-    try {
-      await notificationService.createNotification({
-        type: 'task_completed',
-        title: 'Tâche terminée',
-        message: `${assigneeName} a terminé la tâche: "${taskTitle}".`,
-        recipientId: assignerId,
-        senderId: assigneeId,
-        senderName: assigneeName,
-        relatedItemId: taskId,
-        relatedItemType: 'task',
-        link: `/dashboard?task=${taskId}`
-      });
-    } catch (error) {
-      console.error('Error creating task completion notification:', error);
+      console.error('Error notifying author of approval status:', error);
       throw error;
     }
   }
 };
 
-export default notificationService; 
+export default notificationService;

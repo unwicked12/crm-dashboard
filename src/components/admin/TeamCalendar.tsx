@@ -52,7 +52,7 @@ import {
   startOfWeek,
   endOfWeek,
 } from 'date-fns';
-import { userService, Schedule } from '../../services/userService';
+import { userService, Schedule as BaseSchedule } from '../../services/userService';
 import { scheduleService } from '../../services/scheduleService';
 
 interface User {
@@ -63,6 +63,12 @@ interface User {
   role: string;
   tier: string;
 }
+
+interface ExtendedSchedule extends BaseSchedule {
+  status: string;
+}
+
+type Schedule = ExtendedSchedule;
 
 const TeamCalendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -75,10 +81,11 @@ const TeamCalendar: React.FC = () => {
     userId: '',
     date: new Date(),
     shift: '09:00-18:00',
+    status: 'pending',
     tasks: {
       morning: 'CALL',
-      afternoon: 'CRM',
-    },
+      afternoon: 'CRM'
+    }
   });
   const [autoScheduleLoading, setAutoScheduleLoading] = useState(false);
   const [clearingSchedules, setClearingSchedules] = useState(false);
@@ -103,7 +110,12 @@ const TeamCalendar: React.FC = () => {
         const monthStart = startOfMonth(currentDate);
         const monthEnd = endOfMonth(currentDate);
         const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
-        setSchedules(fetchedSchedules);
+        // Convert fetched schedules to ExtendedSchedule type
+        const extendedSchedules: ExtendedSchedule[] = fetchedSchedules.map(schedule => ({
+          ...schedule,
+          status: schedule.status || 'pending' // Use existing status or default to 'pending'
+        }));
+        setSchedules(extendedSchedules);
       } catch (error) {
         console.error('Error fetching schedules:', error);
       } finally {
@@ -136,21 +148,29 @@ const TeamCalendar: React.FC = () => {
       userId: '',
       date: new Date(),
       shift: '09:00-18:00',
+      status: 'pending',
       tasks: {
         morning: 'CALL',
-        afternoon: 'CRM',
-      },
+        afternoon: 'CRM'
+      }
     });
   };
 
   const handleAddSchedule = async () => {
     try {
-      await userService.createSchedule(newSchedule);
+      await userService.createSchedule({
+        ...newSchedule,
+        status: 'pending'
+      });
       // Refresh schedules
       const monthStart = startOfMonth(currentDate);
       const monthEnd = endOfMonth(currentDate);
       const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
-      setSchedules(fetchedSchedules);
+      const extendedSchedules: ExtendedSchedule[] = fetchedSchedules.map(schedule => ({
+        ...schedule,
+        status: schedule.status || 'pending'
+      }));
+      setSchedules(extendedSchedules);
       handleCloseDialog();
     } catch (error) {
       console.error('Error creating schedule:', error);
@@ -183,7 +203,8 @@ const TeamCalendar: React.FC = () => {
           userId: schedule.userId,
           date: new Date(schedule.date),
           shift: schedule.shift,
-          tasks: schedule.tasks
+          tasks: schedule.tasks,
+          status: schedule.status || 'pending'
         });
       }
 
@@ -191,7 +212,11 @@ const TeamCalendar: React.FC = () => {
       console.log('Refreshing schedule display...');
       const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
       console.log('Fetched schedules:', fetchedSchedules);
-      setSchedules(fetchedSchedules);
+      const extendedSchedules: ExtendedSchedule[] = fetchedSchedules.map(schedule => ({
+        ...schedule,
+        status: schedule.status || 'pending'
+      }));
+      setSchedules(extendedSchedules);
       console.log('Auto-schedule complete!');
     } catch (error) {
       console.error('Error auto-scheduling:', error);

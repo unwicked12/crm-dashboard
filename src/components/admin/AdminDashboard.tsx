@@ -15,10 +15,12 @@ import {
   BeachAccess as HolidayIcon,
   AccessTime as SpecialRequestIcon,
   Refresh as RefreshIcon,
+  Article as ArticleIcon,
 } from '@mui/icons-material';
 import RequestManagement from './RequestManagement';
 import TeamCalendar from './TeamCalendar';
 import ActivityOverview from './ActivityOverview';
+import ArticleApprovalList from '../ArticleApprovalList';
 import { dashboardService, DashboardStats } from '../../services/dashboardService';
 
 interface StatCardProps {
@@ -81,6 +83,7 @@ const AdminDashboard: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState('requests');
   const [loading, setLoading] = useState(true);
+  const [pendingArticles, setPendingArticles] = useState(0);
 
   useEffect(() => {
     setLoading(true);
@@ -169,6 +172,7 @@ const AdminDashboard: React.FC = () => {
           <Tab label="Request Management" value="requests" />
           <Tab label="Team Calendar" value="calendar" />
           <Tab label="Activity Overview" value="activity" />
+          <Tab label="Article Approvals" value="articles" />
         </Tabs>
       </Box>
 
@@ -176,6 +180,7 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'requests' && <RequestManagement />}
         {activeTab === 'calendar' && <TeamCalendar />}
         {activeTab === 'activity' && <ActivityOverview />}
+        {activeTab === 'articles' && <ArticleApprovalList />}
       </Box>
 
       <style>

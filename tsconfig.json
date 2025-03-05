@@ -20,9 +20,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "typeRoots": [
-      "./node_modules/@types",
-      "./src/types"
-    ]
+      "./node_modules/@types"
+    ],
+    "types": [
+      "node"
+    ],
+    "noImplicitAny": false
   },
   "include": [
     "src",

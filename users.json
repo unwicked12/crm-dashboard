@@ -1,0 +1,81 @@
+{"users": [
+{
+  "localId": "3VCA6Vtpw8SlQ370urskih5Qg9w2",
+  "email": "obuche@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "eHAAazU21KJT33dxWCgwfQJfx46/CA1H9lDd9RTsBx5ujj5HDWw2bQ2zzZrIZ3tJugik9+Gsjg/HTE5dTlD+Yw==",
+  "salt": "JeBZ+cg1g9YPbw==",
+  "lastSignedInAt": "1731972859697",
+  "createdAt": "1731972859697",
+  "providerUserInfo": []
+},
+{
+  "localId": "KQXsLtE0XuaDDjwTt0JCxzJ52wz2",
+  "email": "ssebbane@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "phC2N6gzcKQQCVhu13kGbm9pjGDV/CKh6mZlVJKFnkBRILqb0BUdDVbkPm7eCtjehgsEFYZM3ZLYPOM0seqmIw==",
+  "salt": "p5UWbNZ+Q0vldA==",
+  "lastSignedInAt": "1740172486671",
+  "createdAt": "1740139576357",
+  "providerUserInfo": []
+},
+{
+  "localId": "QXPSMrecTTbMHobdv1pM3FcApdc2",
+  "email": "avial@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "6x1Q/eXssbSHe0pqnqHeqoLszk8d51IP+sEbTw/4dneaNr554/NYkczl8rKnp7zlxHC0agslSGwecCHVmmhO2Q==",
+  "salt": "lUivP5mbK9y4YQ==",
+  "lastSignedInAt": "1731972861741",
+  "createdAt": "1731972861741",
+  "providerUserInfo": []
+},
+{
+  "localId": "hLTTflNRxkP3orYXynaIDJCkaEC3",
+  "email": "scesari@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "gFZRYP50AEshuH2jjgPlW9p9M7PZ+wDn6bYZk++KwctcB40N6q/L8WO0oV3dU3Dil0RPvmFzYRZiYuM1dxtMQg==",
+  "salt": "0MN7qasj8WvF1w==",
+  "lastSignedInAt": "1731972860727",
+  "createdAt": "1731972860727",
+  "providerUserInfo": []
+},
+{
+  "localId": "j9stT7MVxnNAchMVXQqMXNct2Ct2",
+  "email": "soufiane.sebbane@gmail.com",
+  "emailVerified": false,
+  "passwordHash": "c5V3XNDIGQGjRPI8Vi6YxWwivr8duFdFRY4vhPBJwy8o1Z8QEHD5NxTR5IlBRuHILd++1n3wahKY0vBkuu1juQ==",
+  "salt": "7tOgU8TuK5smYw==",
+  "lastSignedInAt": "1740170618212",
+  "createdAt": "1740168775784",
+  "providerUserInfo": []
+},
+{
+  "localId": "jAFLWl69OmObrBSL2z4KBTk81B63",
+  "email": "axelvial@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "LR97kfrY0/6SG3DlYGqNSooUxt9yrB8YHTBrKyGlvvQoCVAYWBCW6XVIkwsJyVKQFEcnP1v3CF+x9TZrO5ajBw==",
+  "salt": "zJ2FTPbowYyu2A==",
+  "lastSignedInAt": "1740157652130",
+  "createdAt": "1740154792647",
+  "providerUserInfo": []
+},
+{
+  "localId": "lM0Oqh4LT6N9HiTzt8ZynwjXxJg1",
+  "email": "sbaazia@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "xCefL9HNUohW2wkSxylMnHL47f4Kc2tR1UcwnN57mPuLmO+AC0ZCT7SuB5GUZEOoxiiYuoeDMIy00uQQkhFT9g==",
+  "salt": "TYxiHklAkOb7Aw==",
+  "lastSignedInAt": "1731972865825",
+  "createdAt": "1731972865825",
+  "providerUserInfo": []
+},
+{
+  "localId": "ya3WLvD9thTS8Sz7tXaKXJ7gM7u2",
+  "email": "hr@cashsentinel.com",
+  "emailVerified": false,
+  "passwordHash": "SELpZEWLeg0l+PLT6mU1G/4f07dnxl0Gz2R9be7ZkCwZOglyd9QVQI0ERaxF89OUXjKfVZKSsw9OF9PoOUQaYA==",
+  "salt": "04Bq2uHWCoe4JQ==",
+  "lastSignedInAt": "1740158691690",
+  "createdAt": "1740158691690",
+  "providerUserInfo": []
+}]}

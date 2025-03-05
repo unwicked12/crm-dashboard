@@ -1,22 +1,31 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import theme from './theme/theme';
-import Login from './components/auth/Login';
+import Login from './pages/Login';
 import Layout from './components/layout/Layout';
 import Dashboard from './components/dashboard/Dashboard';
 import ActivityMonitor from './components/dashboard/ActivityMonitor';
 import AgentScheduleView from './components/dashboard/AgentScheduleView';
+import HolidayRequest from './components/dashboard/HolidayRequest';
+import SaturdayAvailability from './components/dashboard/SaturdayAvailability';
 import KnowledgeBase from './components/knowledgeBase/KnowledgeBase';
+import ArticleApproval from './components/knowledgeBase/ArticleApproval';
 import AdminDashboard from './components/admin/AdminDashboard';
 import RequestManagement from './components/admin/RequestManagement';
 import UserManagement from './components/admin/UserManagement';
 import UserTierManagement from './components/admin/UserTierManagement';
+import HRDashboard from './components/hr/HRDashboard';
+import EmployeeManagement from './components/hr/EmployeeManagement';
+import LeaveManagement from './components/hr/LeaveManagement'; 
+import PerformanceReviews from './components/hr/PerformanceReviews';
+import ManagerDashboard from './components/manager/ManagerDashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AdminRoute from './components/routes/AdminRoute';
+import ManagerRoute from './components/routes/ManagerRoute';
 
 // Protected Route component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -27,7 +36,26 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   }
   
   if (!user) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
+  }
+  
+  return <>{children}</>;
+};
+
+// HR Route component
+const HRRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (user.role !== 'hr' && user.role !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
   }
   
   return <>{children}</>;
@@ -39,7 +67,7 @@ function App() {
       <ThemeProvider theme={theme}>
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <CssBaseline />
-          <Router>
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route
@@ -54,7 +82,54 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="activity" element={<ActivityMonitor />} />
                 <Route path="schedule" element={<AgentScheduleView />} />
+                <Route path="holiday" element={<HolidayRequest />} />
+                <Route path="saturday-availability" element={<SaturdayAvailability />} />
                 <Route path="knowledge-base" element={<KnowledgeBase />} />
+                <Route path="knowledge-base/article/:id" element={<KnowledgeBase />} />
+                
+                {/* HR Routes */}
+                <Route
+                  path="hr"
+                  element={
+                    <HRRoute>
+                      <HRDashboard />
+                    </HRRoute>
+                  }
+                />
+                <Route
+                  path="hr/employees"
+                  element={
+                    <HRRoute>
+                      <EmployeeManagement />
+                    </HRRoute>
+                  }
+                />
+                <Route
+                  path="hr/leave"
+                  element={
+                    <HRRoute>
+                      <LeaveManagement />
+                    </HRRoute>
+                  }
+                />
+                <Route
+                  path="hr/performance"
+                  element={
+                    <HRRoute>
+                      <PerformanceReviews />
+                    </HRRoute>
+                  }
+                />
+                
+                {/* Manager Routes */}
+                <Route
+                  path="manager"
+                  element={
+                    <ManagerRoute>
+                      <ManagerDashboard />
+                    </ManagerRoute>
+                  }
+                />
                 
                 {/* Admin Routes */}
                 <Route
@@ -89,7 +164,16 @@ function App() {
                     </AdminRoute>
                   }
                 />
+                <Route
+                  path="admin/article-approval"
+                  element={
+                    <AdminRoute>
+                      <ArticleApproval />
+                    </AdminRoute>
+                  }
+                />
               </Route>
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </Router>
         </LocalizationProvider>

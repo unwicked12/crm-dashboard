@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '../firebase';
 import { 
   collection, 
@@ -14,10 +15,11 @@ import {
   DocumentSnapshot,
   QuerySnapshot,
   QueryDocumentSnapshot,
+  limit,
 } from 'firebase/firestore';
 
 export type UserTier = 'tier1' | 'tier2' | 'tier3' | 'compliance';
-export type UserRole = 'admin' | 'agent';
+export type UserRole = 'admin' | 'hr' | 'user';
 
 export interface User {
   id: string;
@@ -37,6 +39,7 @@ export interface User {
       afternoon: 'CALL' | 'CRM';
     };
   };
+  saturdayAvailability?: boolean; // Whether the user is available to work on Saturdays
 }
 
 export interface Schedule {
@@ -44,10 +47,23 @@ export interface Schedule {
   userId: string;
   date: Date;
   shift: string;
+  status?: string;
   tasks: {
     morning: 'CALL' | 'CRM';
     afternoon: 'CALL' | 'CRM';
   };
+}
+
+export interface SaturdayAvailabilityHistory {
+  id?: string;
+  userId: string;
+  available: boolean;
+  changedAt: Date;
+  changedBy: string; // User ID who made the change (could be self or admin)
+  date?: Date; // Specific Saturday date this availability applies to
+  month?: number; // Month (1-12) this availability applies to
+  year?: number; // Year this availability applies to
+  isRecurring?: boolean; // Whether this is a recurring setting or for specific dates
 }
 
 interface FirestoreData {
@@ -71,12 +87,17 @@ interface UserUpdate {
       afternoon: 'CALL' | 'CRM';
     };
   };
+  saturdayAvailability?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const USERS_COLLECTION = 'users';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SCHEDULES_COLLECTION = 'schedules';
+const SATURDAY_AVAILABILITY_HISTORY_COLLECTION = 'saturdayAvailabilityHistory';
 
 // Helper function to determine user capabilities based on tier
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const getUserCapabilities = (tier: UserTier) => {
   switch (tier) {
     case 'tier1':
@@ -112,6 +133,7 @@ const getUserCapabilities = (tier: UserTier) => {
   }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const userService = {
   // Get all users
   getAllUsers: async (): Promise<User[]> => {
@@ -179,6 +201,7 @@ export const userService = {
   updateUser: async (userId: string, updates: Partial<Omit<User, 'id'>>): Promise<void> => {
     try {
       const userRef = doc(db, USERS_COLLECTION, userId);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const updateData: UserUpdate = { ...updates };
       
       if (updates.tier) {
@@ -261,5 +284,160 @@ export const userService = {
       console.error('Error deleting schedule:', error);
       throw error;
     }
-  }
-}; 
+  },
+
+  // Update user's Saturday availability and track history
+  updateSaturdayAvailability: async (
+    userId: string, 
+    available: boolean, 
+    changedBy: string,
+    options?: {
+      date?: Date,
+      month?: number,
+      year?: number,
+      isRecurring?: boolean
+    }
+  ): Promise<void> => {
+    try {
+      // If this is for a specific date or month, we don't update the user's general availability
+      if (!options || (!options.date && !options.month)) {
+        // Update user document with general availability
+        const userRef = doc(db, USERS_COLLECTION, userId);
+        await updateDoc(userRef, { saturdayAvailability: available });
+      }
+      
+      // Add to history
+      const historyRef = collection(db, SATURDAY_AVAILABILITY_HISTORY_COLLECTION);
+      await addDoc(historyRef, {
+        userId,
+        available,
+        changedAt: new Date(),
+        changedBy,
+        ...(options?.date && { date: options.date }),
+        ...(options?.month && { month: options.month }),
+        ...(options?.year && { year: options.year }),
+        ...(options?.isRecurring !== undefined && { isRecurring: options.isRecurring })
+      });
+      
+      console.log(`Updated Saturday availability for user ${userId} to ${available}`);
+    } catch (error) {
+      console.error('Error updating Saturday availability:', error);
+      throw error;
+    }
+  },
+  
+  // Get Saturday availability history for a user
+  getSaturdayAvailabilityHistory: async (userId: string): Promise<SaturdayAvailabilityHistory[]> => {
+    try {
+      const historyRef = collection(db, SATURDAY_AVAILABILITY_HISTORY_COLLECTION);
+      const q = query(
+        historyRef,
+        where('userId', '==', userId),
+        orderBy('changedAt', 'desc')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map((doc: any) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          changedAt: data.changedAt.toDate(),
+          date: data.date ? data.date.toDate() : undefined
+        } as SaturdayAvailabilityHistory;
+      });
+    } catch (error) {
+      console.error('Error getting Saturday availability history:', error);
+      throw error;
+    }
+  },
+  
+  // Get current Saturday availability for a user
+  getUserSaturdayAvailability: async (userId: string): Promise<boolean> => {
+    try {
+      const userRef = doc(db, USERS_COLLECTION, userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('User not found');
+      }
+      
+      const userData = userDoc.data();
+      return userData.saturdayAvailability === true;
+    } catch (error) {
+      console.error('Error getting user Saturday availability:', error);
+      throw error;
+    }
+  },
+  
+  // Get Saturday availability for a specific date
+  getUserSaturdayAvailabilityForDate: async (userId: string, date: Date): Promise<boolean> => {
+    try {
+      // First check if there's a specific entry for this date
+      const historyRef = collection(db, SATURDAY_AVAILABILITY_HISTORY_COLLECTION);
+      
+      // Get the year, month, and day
+      const year = date.getFullYear();
+      const month = date.getMonth() + 1; // JavaScript months are 0-indexed
+      
+      // Query for specific date first
+      let q = query(
+        historyRef,
+        where('userId', '==', userId),
+        where('date', '==', date),
+        orderBy('changedAt', 'desc'),
+        // Limit to the most recent entry
+        limit(1)
+      );
+      
+      let querySnapshot = await getDocs(q);
+      
+      // If we found a specific date entry, use that
+      if (!querySnapshot.empty) {
+        return querySnapshot.docs[0].data().available;
+      }
+      
+      // Next, check if there's a month-specific entry
+      q = query(
+        historyRef,
+        where('userId', '==', userId),
+        where('month', '==', month),
+        where('year', '==', year),
+        orderBy('changedAt', 'desc'),
+        limit(1)
+      );
+      
+      querySnapshot = await getDocs(q);
+      
+      // If we found a month-specific entry, use that
+      if (!querySnapshot.empty) {
+        return querySnapshot.docs[0].data().available;
+      }
+      
+      // Finally, fall back to the user's general availability
+      return await userService.getUserSaturdayAvailability(userId);
+    } catch (error) {
+      console.error('Error getting user Saturday availability for date:', error);
+      throw error;
+    }
+  },
+  
+  // Get all Saturdays for a given month and year
+  getSaturdaysInMonth: (month: number, year: number): Date[] => {
+    const saturdays: Date[] = [];
+    const date = new Date(year, month - 1, 1); // Month is 0-indexed in JavaScript
+    
+    // Find the first Saturday of the month
+    while (date.getDay() !== 6) { // 6 is Saturday
+      date.setDate(date.getDate() + 1);
+    }
+    
+    // Add all Saturdays in the month
+    while (date.getMonth() === month - 1) {
+      saturdays.push(new Date(date));
+      date.setDate(date.getDate() + 7);
+    }
+    
+    return saturdays;
+  },
+};

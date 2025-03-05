@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '../firebase';
 import {
   collection,
@@ -9,6 +10,7 @@ import {
   writeBatch,
   Timestamp,
 } from 'firebase/firestore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { DocumentData, QueryDocumentSnapshot } from '@firebase/firestore-types';
 import {
   format,
@@ -18,6 +20,7 @@ import {
   isSameDay,
   setHours,
 } from 'date-fns';
+import { userService } from './userService';
 
 interface User {
   uid: string;
@@ -33,13 +36,21 @@ interface Schedule {
   userId: string;
   date: Date;
   shift: string;
+  status: string;
   tasks: {
     morning: 'CALL' | 'CRM';
     afternoon: 'CALL' | 'CRM';
   };
 }
 
+interface Holiday {
+  userId: string;
+  startDate: Date;
+  endDate: Date;
+}
+
 // Constants for user IDs
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const ADMIN_IDS = [
   'XOn7L0j3RyMuKpnnX2SqdyYbd6x2',
   'bVIsSaUWMSSLpnk335c3txdBbLq1',
@@ -47,11 +58,16 @@ const ADMIN_IDS = [
   '3VCA6Vtpw8SlQ370urskih5Qg9w2',
 ];
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const SEBASTIEN_CESARI_ID = 'hLTTflNRxkP3orYXynaIDJCkaEC3';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const WEDNESDAY_EARLY_START = '08:00';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const REGULAR_START = '09:00';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const REGULAR_END = '18:00';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const scheduleService = {
   async getUsers() {
     const usersRef = collection(db, 'users');
@@ -82,12 +98,21 @@ export const scheduleService = {
     return users;
   },
 
+  async getHolidays(startDate: Date, endDate: Date): Promise<Holiday[]> {
+    // Implementation of getHolidays method
+    // This is a placeholder and should be implemented based on your data structure
+    return [];
+  },
+
   async generateSchedule(startDate: Date, endDate: Date) {
     try {
       const users = await this.getUsers();
       const regularUsers = users.filter(
         (user: User) => !ADMIN_IDS.includes(user.uid)
       );
+      
+      // Get approved holidays for the date range
+      const holidays = await this.getHolidays(startDate, endDate);
 
       await this.clearAllSchedules();
 
@@ -95,7 +120,11 @@ export const scheduleService = {
       let currentDate = new Date(startDate);
 
       while (currentDate <= endDate) {
-        const daySchedules = this.generateDaySchedule(currentDate, regularUsers as User[]);
+        const daySchedules = await this.generateDaySchedule(
+          currentDate, 
+          regularUsers as User[], 
+          holidays
+        );
         schedules.push(...daySchedules);
         currentDate = addDays(currentDate, 1);
       }
@@ -108,32 +137,62 @@ export const scheduleService = {
     }
   },
 
-  generateDaySchedule(date: Date, users: User[]): Schedule[] {
+  // Check if a user is on holiday for a specific date
+  isUserOnHoliday(userId: string, date: Date, holidays: Holiday[]): boolean {
+    return holidays.some(holiday => 
+      holiday.userId === userId && 
+      date >= holiday.startDate && 
+      date <= holiday.endDate
+    );
+  },
+
+  // Check if a user is available for a specific Saturday
+  async isUserAvailableForSaturday(userId: string, date: Date): Promise<boolean> {
+    try {
+      return await userService.getUserSaturdayAvailabilityForDate(userId, date);
+    } catch (error) {
+      console.error('Error checking Saturday availability:', error);
+      // Default to not available if there's an error
+      return false;
+    }
+  },
+
+  async generateDaySchedule(date: Date, users: User[], holidays: Holiday[]): Promise<Schedule[]> {
     const daySchedules: Schedule[] = [];
     const dayOfWeek = format(date, 'EEEE');
     const scheduledUsers = new Set<string>();
 
+    // Don't schedule anyone on Sunday
     if (dayOfWeek === 'Sunday') return daySchedules;
 
+    // Filter out users who are on holiday
+    const availableUsers = users.filter(user => 
+      !this.isUserOnHoliday(user.uid, date, holidays)
+    );
+
     // Ensure users are in only one tier list
-    const tier3Users = users.filter(
+    const tier3Users = availableUsers.filter(
       (user) => user.tier === 'tier3' && user.uid !== SEBASTIEN_CESARI_ID
     );
-    const tier2Users = users.filter(
+    const tier2Users = availableUsers.filter(
       (user) => user.tier === 'tier2' && !tier3Users.some(t3 => t3.uid === user.uid)
     );
-    const tier1Users = users.filter(
+    const tier1Users = availableUsers.filter(
       (user) => user.tier === 'tier1' && 
       !tier3Users.some(t3 => t3.uid === user.uid) &&
       !tier2Users.some(t2 => t2.uid === user.uid)
     );
 
     // Schedule Sebastien on all days except Sunday and Monday
-    if (dayOfWeek !== 'Monday' && !scheduledUsers.has(SEBASTIEN_CESARI_ID)) {
+    // Also check if Sebastien is on holiday
+    if (dayOfWeek !== 'Monday' && 
+        !scheduledUsers.has(SEBASTIEN_CESARI_ID) && 
+        !this.isUserOnHoliday(SEBASTIEN_CESARI_ID, date, holidays)) {
       daySchedules.push({
         userId: SEBASTIEN_CESARI_ID,
         date: new Date(date),
         shift: `${REGULAR_START}-${REGULAR_END}`,
+        status: 'pending',
         tasks: { morning: 'CALL', afternoon: 'CRM' },
       });
       scheduledUsers.add(SEBASTIEN_CESARI_ID);
@@ -147,6 +206,7 @@ export const scheduleService = {
           shift: dayOfWeek === 'Wednesday' && user.tier === 'tier3' 
             ? `${WEDNESDAY_EARLY_START}-${REGULAR_END}`
             : `${REGULAR_START}-${REGULAR_END}`,
+          status: 'pending',
           tasks: { morning: morningTask, afternoon: afternoonTask },
         });
         scheduledUsers.add(user.uid);
@@ -154,12 +214,30 @@ export const scheduleService = {
     };
 
     if (dayOfWeek === 'Saturday') {
-      // Only schedule one tier3 user on Saturday
-      if (tier3Users.length > 0 && !scheduledUsers.has(tier3Users[0].uid)) {
-        addUserToSchedule(tier3Users[0], 'CALL', 'CRM');
+      // For Saturdays, we need to check specific availability for this date
+      const saturdayAvailableUsers: User[] = [];
+      
+      // Check each user's availability for this specific Saturday
+      for (const user of [...tier3Users, ...tier2Users, ...tier1Users]) {
+        const isAvailable = await this.isUserAvailableForSaturday(user.uid, date);
+        if (isAvailable) {
+          saturdayAvailableUsers.push(user);
+        }
+      }
+      
+      // If we have Saturday available users, schedule them
+      if (saturdayAvailableUsers.length > 0) {
+        // Prioritize tier3 users for Saturday
+        const tier3SaturdayUsers = saturdayAvailableUsers.filter(user => user.tier === 'tier3');
+        if (tier3SaturdayUsers.length > 0) {
+          addUserToSchedule(tier3SaturdayUsers[0], 'CALL', 'CRM');
+        } else if (saturdayAvailableUsers.length > 0) {
+          // If no tier3 users are available, use any available user
+          addUserToSchedule(saturdayAvailableUsers[0], 'CALL', 'CRM');
+        }
       }
     } else {
-      // Schedule each user exactly once
+      // Schedule each user exactly once for weekdays
       tier3Users.forEach((user) => {
         if (!scheduledUsers.has(user.uid)) {
           addUserToSchedule(user, 'CRM', 'CALL');

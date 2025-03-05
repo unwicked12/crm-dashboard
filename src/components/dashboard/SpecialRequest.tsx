@@ -1,291 +1,292 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
+  Button,
   Card,
   TextField,
-  Button,
   Typography,
   Stack,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
   Chip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText,
   useTheme,
   alpha,
-  IconButton,
-  Tooltip,
 } from '@mui/material';
 import {
-  ExpandMore as ExpandMoreIcon,
-  Send as SendIcon,
-  Description as DescriptionIcon,
-  AccessTime as TimeIcon,
+  Event as EventIcon,
   Delete as DeleteIcon,
-  Edit as EditIcon,
 } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { format } from 'date-fns';
+import { useAuth } from '../../contexts/AuthContext';
+import { requestService, Request } from '../../services/requestService';
 
-interface Request {
-  id: string;
-  title: string;
-  description: string;
-  date: string;
-  status: 'pending' | 'approved' | 'rejected';
+interface SpecialRequest extends Request {
+  type: 'special';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 const SpecialRequest: React.FC = () => {
+  const { user } = useAuth();
   const theme = useTheme();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [expanded, setExpanded] = useState<string | false>(false);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [reason, setReason] = useState('');
+  const [requests, setRequests] = useState<SpecialRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
 
-  // Sample previous requests data
-  const previousRequests: Request[] = [
-    {
-      id: '1',
-      title: 'Work from Home Request',
-      description: 'Request to work from home due to transportation issues',
-      date: '2023-11-20T09:00:00',
-      status: 'approved',
-    },
-    {
-      id: '2',
-      title: 'Equipment Request',
-      description: 'Need a second monitor for better productivity',
-      date: '2023-11-18T14:30:00',
-      status: 'pending',
-    },
-    {
-      id: '3',
-      title: 'Schedule Adjustment',
-      description: 'Request to adjust working hours next week',
-      date: '2023-11-15T11:20:00',
-      status: 'rejected',
-    },
-  ];
+  // Fetch requests on component mount
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    fetchRequests(user.id);
+    const refreshInterval = setInterval(() => fetchRequests(user.id), 30000);
+    return () => clearInterval(refreshInterval);
+  }, [user?.id]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const fetchRequests = async (userId: string) => {
+    try {
+      setLoading(true);
+      const allRequests = await requestService.getUserRequests(userId);
+      const specialRequests = allRequests
+        .filter(req => req.type === 'special')
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA; // Sort by creation date, newest first
+        }) as SpecialRequest[];
+      
+      setRequests(specialRequests);
+    } catch (error: any) {
+      console.error('Error fetching special requests:', error);
+      setError(error.message || 'Failed to fetch requests');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    console.log({ title, description });
-    setTitle('');
-    setDescription('');
+    if (!startDate || !reason || !user?.id) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Debug log
+      console.log('Submitting special request with dates:', {
+        startDate: startDate?.toISOString(),
+        endDate: endDate?.toISOString() || startDate?.toISOString()
+      });
+      
+      await requestService.createRequest({
+        type: 'special',
+        startDate,
+        endDate: endDate || startDate, // For special requests, end date is optional
+        reason,
+        userId: user.id,
+        // Ensure date field is set to avoid undefined error
+        date: startDate
+      });
+
+      // Refresh the requests list
+      await fetchRequests(user.id);
+
+      // Reset form
+      setStartDate(null);
+      setEndDate(null);
+      setReason('');
+      setError(null);
+    } catch (error: any) {
+      console.error('Error submitting special request:', error);
+      setError(error.message || 'Failed to submit request');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleAccordionChange = (panel: string) => (
-    event: React.SyntheticEvent,
-    isExpanded: boolean
-  ) => {
-    setExpanded(isExpanded ? panel : false);
+  const handleDeleteClick = (requestId: string) => {
+    setSelectedRequest(requestId);
+    setDeleteDialogOpen(true);
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return {
-          bg: alpha(theme.palette.success.main, 0.1),
-          color: theme.palette.success.main,
-        };
-      case 'rejected':
-        return {
-          bg: alpha(theme.palette.error.main, 0.1),
-          color: theme.palette.error.main,
-        };
-      default:
-        return {
-          bg: alpha(theme.palette.warning.main, 0.1),
-          color: theme.palette.warning.main,
-        };
+  const handleDeleteConfirm = async () => {
+    if (!selectedRequest || !user?.id) return;
+
+    try {
+      setLoading(true);
+      await requestService.deleteRequest(selectedRequest);
+      await fetchRequests(user.id);
+      setDeleteDialogOpen(false);
+      setSelectedRequest(null);
+    } catch (error: any) {
+      console.error('Error deleting request:', error);
+      setError(error.message || 'Failed to delete request');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <Box>
-      <Card
-        elevation={0}
-        sx={{
-          p: 3,
-          mb: 3,
-          border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 2,
-        }}
-      >
-        <Typography variant="h6" gutterBottom sx={{ mb: 3, fontWeight: 600 }}>
-          New Special Request
-        </Typography>
-
+      <Card sx={{ mb: 2, p: 2 }}>
         <form onSubmit={handleSubmit}>
-          <Stack spacing={3}>
-            <TextField
-              label="Request Title"
-              fullWidth
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-              variant="outlined"
-              InputProps={{
-                startAdornment: (
-                  <DescriptionIcon
-                    sx={{ mr: 1, color: theme.palette.text.secondary }}
-                  />
-                ),
-              }}
-            />
+          <Stack spacing={2}>
+            <Typography variant="subtitle1" fontWeight="medium">Submit Special Request</Typography>
+            
+            <Stack direction="row" spacing={2}>
+              <DatePicker
+                label="Date"
+                value={startDate}
+                onChange={(newValue) => setStartDate(newValue)}
+                disabled={loading}
+                sx={{ width: '100%' }}
+              />
+              <DatePicker
+                label="End Date (Optional)"
+                value={endDate}
+                onChange={(newValue) => setEndDate(newValue)}
+                disabled={loading}
+                sx={{ width: '100%' }}
+              />
+            </Stack>
 
             <TextField
-              label="Description"
-              fullWidth
+              label="Request Details"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
               multiline
-              rows={4}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
               required
-              variant="outlined"
+              disabled={loading}
             />
 
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                type="submit"
-                variant="contained"
-                endIcon={<SendIcon />}
-                sx={{
-                  px: 4,
-                  py: 1,
-                  borderRadius: 2,
-                  boxShadow: 'none',
-                  '&:hover': {
-                    boxShadow: 'none',
-                  },
-                }}
-              >
-                Submit Request
-              </Button>
-            </Box>
+            {error && (
+              <Typography color="error" variant="body2">
+                {error}
+              </Typography>
+            )}
+
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              startIcon={<EventIcon />}
+              size="small"
+            >
+              {loading ? 'Submitting...' : 'Submit Request'}
+            </Button>
           </Stack>
         </form>
       </Card>
 
-      <Box sx={{ mb: 2 }}>
-        <Typography
-          variant="h6"
-          gutterBottom
-          sx={{ mb: 3, fontWeight: 600, color: theme.palette.text.primary }}
-        >
-          Previous Requests
-        </Typography>
-
-        {previousRequests.map((request) => (
-          <Accordion
-            key={request.id}
-            expanded={expanded === request.id}
-            onChange={handleAccordionChange(request.id)}
-            elevation={0}
-            sx={{
-              mb: 2,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: '12px !important',
-              '&:before': {
-                display: 'none',
-              },
-              '&.Mui-expanded': {
-                margin: '0 0 16px 0',
-              },
-            }}
-          >
-            <AccordionSummary
-              expandIcon={<ExpandMoreIcon />}
-              sx={{
-                borderRadius: 2,
-                '&:hover': {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                },
-              }}
-            >
-              <Stack
-                direction="row"
-                alignItems="center"
-                spacing={2}
-                sx={{ width: '100%' }}
+      {requests.length > 0 && (
+        <>
+          <Typography variant="subtitle1" fontWeight="medium" sx={{ mb: 1 }}>
+            Previous Requests
+            <Chip 
+              label={requests.length} 
+              size="small" 
+              sx={{ ml: 1, height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
+            />
+          </Typography>
+          
+          <Box sx={{ 
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 1,
+            overflow: 'hidden'
+          }}>
+            {requests.map((request) => (
+              <Box
+                key={request.id}
+                sx={{
+                  p: 1,
+                  borderBottom: '1px solid',
+                  borderColor: 'divider',
+                  '&:last-child': {
+                    borderBottom: 'none'
+                  },
+                  backgroundColor: 
+                    request.status === 'approved' 
+                      ? alpha(theme.palette.success.main, 0.05)
+                      : request.status === 'rejected'
+                      ? alpha(theme.palette.error.main, 0.05)
+                      : alpha(theme.palette.warning.main, 0.05),
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
               >
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
-                    {request.title}
-                  </Typography>
-                  <Stack
-                    direction="row"
-                    spacing={2}
-                    alignItems="center"
-                    sx={{ mt: 0.5 }}
-                  >
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <TimeIcon
-                        sx={{
-                          fontSize: 16,
-                          color: theme.palette.text.secondary,
-                        }}
-                      />
-                      <Typography
-                        variant="caption"
-                        sx={{ color: theme.palette.text.secondary }}
-                      >
-                        {format(new Date(request.date), 'MMM dd, yyyy HH:mm')}
-                      </Typography>
-                    </Stack>
-                    <Chip
-                      label={request.status}
-                      size="small"
-                      sx={{
-                        backgroundColor: getStatusColor(request.status).bg,
-                        color: getStatusColor(request.status).color,
-                        textTransform: 'capitalize',
-                        fontWeight: 500,
-                      }}
-                    />
-                  </Stack>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <EventIcon color="action" fontSize="small" sx={{ mr: 1 }} />
+                  <Box>
+                    <Typography variant="body2" fontWeight="medium">
+                      {request.startDate && format(new Date(request.startDate), 'MMM d')}
+                      {request.startDate && request.endDate && request.endDate !== request.startDate && 
+                        ` - ${format(new Date(request.endDate), 'MMM d')}`}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
+                      {request.reason.substring(0, 30)}
+                      {request.reason.length > 30 ? '...' : ''}
+                    </Typography>
+                  </Box>
                 </Box>
-                <Stack direction="row" spacing={1}>
-                  <Tooltip title="Edit Request">
-                    <IconButton
-                      size="small"
-                      sx={{
-                        color: theme.palette.primary.main,
-                        backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.primary.main, 0.2),
-                        },
-                      }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Delete Request">
-                    <IconButton
-                      size="small"
-                      sx={{
-                        color: theme.palette.error.main,
-                        backgroundColor: alpha(theme.palette.error.main, 0.1),
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.error.main, 0.2),
-                        },
-                      }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                </Stack>
-              </Stack>
-            </AccordionSummary>
-            <AccordionDetails
-              sx={{
-                borderTop: `1px solid ${theme.palette.divider}`,
-                backgroundColor: alpha(theme.palette.primary.main, 0.02),
-              }}
-            >
-              <Typography color="text.secondary">{request.description}</Typography>
-            </AccordionDetails>
-          </Accordion>
-        ))}
-      </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Chip
+                    label={request.status}
+                    color={
+                      request.status === 'approved'
+                        ? 'success'
+                        : request.status === 'rejected'
+                        ? 'error'
+                        : 'warning'
+                    }
+                    size="small"
+                    sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
+                  />
+                  <IconButton
+                    size="small"
+                    onClick={() => request.id && handleDeleteClick(request.id)}
+                    sx={{ ml: 0.5 }}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>Confirm Deletion</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this request? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" autoFocus>
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

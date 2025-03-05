@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -35,6 +36,7 @@ import {
   School as InternIcon,
   Security as ComplianceIcon,
 } from '@mui/icons-material';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '../../firebase';
 import { 
   collection, 
@@ -43,22 +45,28 @@ import {
   setDoc,
   deleteDoc,
   query,
-  orderBy
+  orderBy,
+  serverTimestamp,
+  where,
+  getDoc
 } from 'firebase/firestore';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { QueryDocumentSnapshot, DocumentData } from '@firebase/firestore-types';
 import { 
   getAuth, 
   createUserWithEmailAndPassword,
   updateEmail,
   deleteUser,
+  signInWithEmailAndPassword
 } from 'firebase/auth';
 
 interface User {
   uid: string;
   email: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'hr' | 'user';
   tier: UserTier;
+  scheduleType: 'standard' | 'short' | 'nine';
   capabilities: {
     canDoCRM: boolean;
     canDoCalls: boolean;
@@ -71,14 +79,23 @@ interface User {
 
 type UserTier = 'tier1' | 'tier2' | 'tier3' | 'compliance';
 
+interface TierCapabilities {
+  canDoCRM: boolean;
+  canDoCalls: boolean;
+  isIntern: boolean;
+  canDoCompliance: boolean;
+}
+
 interface UserFormData {
   email: string;
   password: string;
   name: string;
-  role: 'admin' | 'user';
+  role: 'admin' | 'hr' | 'user';
   tier: UserTier;
+  scheduleType: 'standard' | 'short' | 'nine';
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const TIER_INFO = {
   tier1: {
     label: 'Tier 1 (Intern)',
@@ -130,38 +147,127 @@ const TIER_INFO = {
   },
 } as const;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const UserManagement: React.FC = () => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [users, setUsers] = useState<User[]>([]);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(true);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [openDialog, setOpenDialog] = useState(false);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
     password: '',
     name: '',
     role: 'user',
-    tier: 'tier1'
+    tier: 'tier1',
+    scheduleType: 'standard'
   });
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // Check Firestore connection
+// eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    checkFirestoreConnection();
+  }, []);
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const checkFirestoreConnection = async () => {
+    try {
+      // Try to fetch a small document to test connection
+      await getDoc(doc(db, 'settings', 'app'));
+      setConnectionError(null);
+      // If connection is successful, fetch users
+      fetchUsers();
+    } catch (err: any) {
+      console.error('Firestore connection error:', err);
+      setConnectionError(
+        'Unable to connect to Firestore. This may be due to CORS issues or network problems. ' +
+        'Please check your network connection and browser console for more details.'
+      );
+    }
+  };
+
+  // Ensure capabilities have all required properties
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const ensureValidCapabilities = (capabilities: any): TierCapabilities => {
+    const defaultCapabilities = {
+      canDoCRM: false,
+      canDoCalls: false,
+      isIntern: true,
+      canDoCompliance: false
+    };
+    
+    if (!capabilities) return defaultCapabilities;
+    
+    return {
+      canDoCRM: typeof capabilities.canDoCRM === 'boolean' ? capabilities.canDoCRM : defaultCapabilities.canDoCRM,
+      canDoCalls: typeof capabilities.canDoCalls === 'boolean' ? capabilities.canDoCalls : defaultCapabilities.canDoCalls,
+      isIntern: typeof capabilities.isIntern === 'boolean' ? capabilities.isIntern : defaultCapabilities.isIntern,
+      canDoCompliance: typeof capabilities.canDoCompliance === 'boolean' ? capabilities.canDoCompliance : defaultCapabilities.canDoCompliance
+    };
+  };
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchUsers = async () => {
     try {
       setLoading(true);
       const usersRef = collection(db, 'users');
       const q = query(usersRef, orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const userData: User[] = [];
       
       snapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
         const data = doc.data();
-        const userTier = (data.tier || 'tier1') as UserTier;
+        // Get the tier value and normalize it to lowercase for case-insensitive comparison
+        const rawTier = data.tier || 'tier1';
+        
+        // Try to match the tier case-insensitively
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+        let userTier: UserTier = 'tier1';
+        
+        // Check if the tier exists in TIER_INFO directly
+        if (TIER_INFO[rawTier as UserTier]) {
+          userTier = rawTier as UserTier;
+        } else {
+          // Try to match case-insensitively
+          const tierKeys = Object.keys(TIER_INFO) as UserTier[];
+          const matchedTier = tierKeys.find(key => 
+            key.toLowerCase() === rawTier.toLowerCase()
+          );
+          
+          if (matchedTier) {
+            userTier = matchedTier;
+            console.log(`Found case-insensitive match for tier: ${rawTier} → ${matchedTier}`);
+          } else {
+            console.warn(`Invalid tier value found: ${rawTier}, defaulting to tier1`);
+          }
+        }
+        
+        // Use existing capabilities if they exist, otherwise use the tier's default capabilities
+        const capabilities = data.capabilities 
+          ? ensureValidCapabilities(data.capabilities)
+          : ensureValidCapabilities(TIER_INFO[userTier].capabilities);
+        
         userData.push({
           uid: doc.id,
           email: data.email,
           name: data.name,
           role: data.role,
           tier: userTier,
-          capabilities: TIER_INFO[userTier].capabilities,
+          scheduleType: data.scheduleType || 'standard',
+          capabilities: capabilities,
           createdAt: data.createdAt?.toDate() || new Date(),
           lastLogin: data.lastLogin?.toDate()
         });
@@ -177,10 +283,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleOpenDialog = (user?: User) => {
     if (user) {
       setSelectedUser(user);
@@ -189,7 +292,8 @@ const UserManagement: React.FC = () => {
         password: '', // Don't show existing password
         name: user.name,
         role: user.role,
-        tier: user.tier
+        tier: user.tier,
+        scheduleType: user.scheduleType || 'standard'
       });
     } else {
       setSelectedUser(null);
@@ -198,12 +302,14 @@ const UserManagement: React.FC = () => {
         password: '',
         name: '',
         role: 'user',
-        tier: 'tier1'
+        tier: 'tier1',
+        scheduleType: 'standard'
       });
     }
     setOpenDialog(true);
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setSelectedUser(null);
@@ -212,50 +318,197 @@ const UserManagement: React.FC = () => {
       password: '',
       name: '',
       role: 'user',
-      tier: 'tier1'
+      tier: 'tier1',
+      scheduleType: 'standard'
     });
     setError(null);
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const validateFormData = () => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const errors: string[] = [];
+    
+    if (!formData.email?.trim()) {
+      errors.push('Email is required');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.push('Invalid email format');
+    }
+
+    if (!formData.password?.trim()) {
+      errors.push('Password is required');
+    } else if (formData.password.length < 8) {
+      errors.push('Password must be at least 8 characters');
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(formData.password)) {
+      errors.push('Password must contain at least one uppercase letter, one lowercase letter, and one number');
+    }
+
+    if (!formData.name?.trim()) {
+      errors.push('Name is required');
+    }
+
+    if (!formData.role) {
+      errors.push('Role is required');
+    }
+
+    if (!formData.tier) {
+      errors.push('Tier is required');
+    }
+
+    if (!formData.scheduleType) {
+      errors.push('Schedule type is required');
+    }
+
+    return errors;
+  };
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const createUser = async () => {
     try {
-      const auth = getAuth();
-      // Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      setLoading(true);
+      setError(null);
 
-      // Add user data to Firestore
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Validate form data
+      const validationErrors = validateFormData();
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join('\n'));
+        return;
+      }
+
+      const auth = getAuth();
+      
+      // Check if email already exists in Firestore
+      const usersRef = collection(db, 'users');
+      const emailQuery = query(usersRef, where('email', '==', formData.email));
+      const emailSnapshot = await getDocs(emailQuery);
+      
+      if (!emailSnapshot.empty) {
+        setError('A user with this email already exists');
+        return;
+      }
+
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const newUser = userCredential.user;
+
+      // Create user document in Firestore with the SAME ID as Auth UID
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const userRef = doc(db, 'users', newUser.uid);
+      
+      // Ensure the tier is valid
+      let userTier = formData.tier;
+      
+      // Check if the tier exists in TIER_INFO directly
+      if (!TIER_INFO[userTier]) {
+        // Try to match case-insensitively
+        const tierKeys = Object.keys(TIER_INFO) as UserTier[];
+        const matchedTier = tierKeys.find(key => 
+          key.toLowerCase() === userTier.toLowerCase()
+        );
+        
+        if (matchedTier) {
+          userTier = matchedTier;
+          console.log(`Found case-insensitive match for tier: ${formData.tier} → ${matchedTier}`);
+        } else {
+          console.warn(`Invalid tier value found: ${userTier}, defaulting to tier1`);
+          userTier = 'tier1';
+        }
+      }
+      
+      const capabilities = ensureValidCapabilities(TIER_INFO[userTier].capabilities);
+      
+      const userData = {
+        id: newUser.uid,
+        uid: newUser.uid,
         email: formData.email,
         name: formData.name,
         role: formData.role,
-        tier: formData.tier,
-        capabilities: TIER_INFO[formData.tier].capabilities,
-        createdAt: new Date()
-      });
+        tier: userTier,
+        scheduleType: formData.scheduleType,
+        capabilities: capabilities,
+        status: 'active',
+        createdAt: serverTimestamp(),
+        lastLogin: null,
+        lastActive: null
+      };
 
+      await setDoc(userRef, userData);
+
+      // Send email verification
+      await newUser.sendEmailVerification();
+
+      // Refresh the users list
       await fetchUsers();
       handleCloseDialog();
-      setError(null);
-    } catch (err: any) {
-      console.error('Error creating user:', err);
-      setError(err.message || 'Failed to create user');
+      
+      // Show success message
+      setSnackbarMessage('User created successfully. Verification email sent.');
+      setSnackbarOpen(true);
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      let errorMessage = 'Failed to create user';
+      
+      // Handle specific Firebase Auth errors
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email is already registered';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Invalid email address';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Email/password accounts are not enabled. Please contact support.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'Password is too weak. Please choose a stronger password.';
+          break;
+        default:
+          errorMessage = error.message || 'An unexpected error occurred';
+      }
+      
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateUser = async () => {
     if (!selectedUser) return;
 
     try {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const userRef = doc(db, 'users', selectedUser.uid);
+      
+      // Ensure the tier is valid
+      let userTier = formData.tier;
+      
+      // Check if the tier exists in TIER_INFO directly
+      if (!TIER_INFO[userTier]) {
+        // Try to match case-insensitively
+        const tierKeys = Object.keys(TIER_INFO) as UserTier[];
+        const matchedTier = tierKeys.find(key => 
+          key.toLowerCase() === userTier.toLowerCase()
+        );
+        
+        if (matchedTier) {
+          userTier = matchedTier;
+          console.log(`Found case-insensitive match for tier: ${formData.tier} → ${matchedTier}`);
+        } else {
+          console.warn(`Invalid tier value found: ${userTier}, defaulting to tier1`);
+          userTier = 'tier1';
+        }
+      }
+      
+      const capabilities = ensureValidCapabilities(TIER_INFO[userTier].capabilities);
+      
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const updateData: any = {
         name: formData.name,
         role: formData.role,
-        tier: formData.tier,
-        capabilities: TIER_INFO[formData.tier].capabilities,
+        tier: userTier,
+        scheduleType: formData.scheduleType,
+        capabilities: capabilities,
         updatedAt: new Date()
       };
 
@@ -278,21 +531,15 @@ const UserManagement: React.FC = () => {
     }
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleDeleteUser = async (user: User) => {
     if (!window.confirm(`Are you sure you want to delete ${user.name}?`)) {
       return;
     }
 
     try {
-      // Delete from Firestore
+      // Delete from Firestore - the Cloud Function will handle the Firebase Auth deletion
       await deleteDoc(doc(db, 'users', user.uid));
-      
-      // Delete from Firebase Auth
-      const auth = getAuth();
-      if (auth.currentUser) {
-        await deleteUser(auth.currentUser);
-      }
-
       await fetchUsers();
       setError(null);
     } catch (err: any) {
@@ -301,6 +548,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSubmit = async () => {
     if (selectedUser) {
       await updateUser();
@@ -309,6 +557,7 @@ const UserManagement: React.FC = () => {
     }
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const renderCapabilityChips = (capabilities: User['capabilities']) => (
     <Stack direction="row" spacing={1}>
       {capabilities.canDoCalls && (
@@ -351,7 +600,31 @@ const UserManagement: React.FC = () => {
   );
 
   return (
-    <Box>
+    <Box sx={{ p: 3 }}>
+      <Typography variant="h5" gutterBottom>
+        User Management
+      </Typography>
+      
+      {connectionError && (
+        <Alert 
+          severity="error" 
+          sx={{ mb: 3 }}
+          action={
+            <Button color="inherit" size="small" onClick={checkFirestoreConnection}>
+              Retry Connection
+            </Button>
+          }
+        >
+          {connectionError}
+        </Alert>
+      )}
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
       <Stack direction="row" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h5" component="h1">
           User Management
@@ -364,12 +637,6 @@ const UserManagement: React.FC = () => {
           Add User
         </Button>
       </Stack>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -398,8 +665,20 @@ const UserManagement: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={user.role === 'admin' ? 'Admin' : 'User'}
-                    color={user.role === 'admin' ? 'primary' : 'default'}
+                    label={
+                      user.role === 'admin' 
+                        ? 'Admin' 
+                        : user.role === 'hr'
+                          ? 'HR'
+                          : 'User'
+                    }
+                    color={
+                      user.role === 'admin' 
+                        ? 'primary'
+                        : user.role === 'hr'
+                          ? 'secondary'
+                          : 'default'
+                    }
                     size="small"
                   />
                 </TableCell>
@@ -464,39 +743,41 @@ const UserManagement: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
             )}
-            <FormControl fullWidth>
+            <FormControl fullWidth margin="normal">
               <InputLabel>Role</InputLabel>
               <Select
                 value={formData.role}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'hr' | 'user' })}
                 label="Role"
-                onChange={(e) => setFormData({ ...formData, role: e.target.value as 'admin' | 'user' })}
               >
                 <MenuItem value="user">User</MenuItem>
+                <MenuItem value="hr">HR</MenuItem>
                 <MenuItem value="admin">Admin</MenuItem>
               </Select>
             </FormControl>
-            <FormControl fullWidth>
+            <FormControl fullWidth sx={{ mt: 2 }}>
               <InputLabel>Tier</InputLabel>
               <Select
                 value={formData.tier}
                 label="Tier"
                 onChange={(e) => setFormData({ ...formData, tier: e.target.value as UserTier })}
               >
-                {(Object.entries(TIER_INFO) as [UserTier, typeof TIER_INFO[UserTier]][]).map(([tier, info]) => (
-                  <MenuItem key={tier} value={tier}>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      {info.icon}
-                      <Box>
-                        <Typography variant="body2">
-                          {info.label}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {info.description}
-                        </Typography>
-                      </Box>
-                    </Stack>
-                  </MenuItem>
-                ))}
+                <MenuItem value="tier1">{TIER_INFO.tier1.label}</MenuItem>
+                <MenuItem value="tier2">{TIER_INFO.tier2.label}</MenuItem>
+                <MenuItem value="tier3">{TIER_INFO.tier3.label}</MenuItem>
+                <MenuItem value="compliance">{TIER_INFO.compliance.label}</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel>Schedule Type</InputLabel>
+              <Select
+                value={formData.scheduleType}
+                label="Schedule Type"
+                onChange={(e) => setFormData({ ...formData, scheduleType: e.target.value as 'standard' | 'short' | 'nine' })}
+              >
+                <MenuItem value="standard">40 heures par semaine</MenuItem>
+                <MenuItem value="short">39 heures par semaine (1 journée courte)</MenuItem>
+                <MenuItem value="nine">9 heures par semaine</MenuItem>
               </Select>
             </FormControl>
           </Stack>

@@ -47,7 +47,7 @@ const ActivityOverview: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const { firebaseUser } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
     const q = query(
@@ -140,19 +140,19 @@ const ActivityOverview: React.FC = () => {
   };
 
   const handleStatusChange = async (status: UserStatus) => {
-    if (firebaseUser && selectedUserId === firebaseUser.uid) {
+    if (user && selectedUserId === user.uid) {
       switch (status) {
         case 'checked-in':
-          await activityService.setUserOnline(firebaseUser);
+          await activityService.setUserOnline(user);
           break;
         case 'checked-out':
-          await activityService.setUserOffline(firebaseUser);
+          await activityService.setUserOffline(user);
           break;
         case 'lunch':
-          await activityService.setUserLunch(firebaseUser);
+          await activityService.setUserLunch(user);
           break;
         case 'break':
-          await activityService.setUserBreak(firebaseUser);
+          await activityService.setUserBreak(user);
           break;
       }
     }
@@ -218,7 +218,7 @@ const ActivityOverview: React.FC = () => {
                   {format(activity.lastActionTime, 'HH:mm:ss')}
                 </TableCell>
                 <TableCell align="right">
-                  {activity.userId === firebaseUser?.uid && (
+                  {activity.userId === user?.uid && (
                     <IconButton
                       size="small"
                       onClick={(e) => handleMenuOpen(e, activity.userId)}

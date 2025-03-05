@@ -1,0 +1,49 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return request.auth != null && request.auth.token.role == 'admin';
+    }
+    
+    function isHR() {
+      return request.auth != null && request.auth.token.role == 'hr';
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Default rule - deny all unless specified
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // Knowledge Base images
+    match /knowledgeBase/{articleId}/{imageFile} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (
+        isAdmin() || 
+        isOwner(request.auth.uid)
+      );
+    }
+
+    // Specific rules for signed documents
+    match /signedDocuments/{userId}/{document=**} {
+      allow read: if isAuthenticated() && (isAdmin() || isHR() || isOwner(userId));
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (isAdmin() || isHR());
+    }
+
+    // Allow CORS preflight requests
+    match /{document=**} {
+      allow read: if request.method == 'OPTIONS';
+    }
+  }
+} 

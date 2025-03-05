@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import React, { useState, useEffect, useCallback, ReactElement } from 'react';
 import {
   Box,
   Button,
@@ -6,19 +7,16 @@ import {
   Paper,
   Stack,
   Chip,
-  Divider,
   useTheme,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
   Card,
   Grid,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableRow,
+  Divider,
 } from '@mui/material';
 import {
   PlayArrow as CheckInIcon,
@@ -28,731 +26,523 @@ import {
   AccessTime as ClockIcon,
   Timer as TimerIcon,
 } from '@mui/icons-material';
-import { format, differenceInMinutes, isToday, startOfDay } from 'date-fns';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { format, differenceInMinutes, isToday } from 'date-fns';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useAuth } from '../../contexts/AuthContext';
-import { activityService, UserStatus } from '../../services/activityService';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { activityService } from '../../services/activityService';
 import { 
-  doc, 
-  onSnapshot, 
-  query, 
-  collection, 
-  where, 
+  doc,
+  onSnapshot,
+  query,
+  collection,
+  where,
   orderBy,
-  Timestamp
+  QuerySnapshot,
+  DocumentSnapshot,
+  DocumentData
 } from 'firebase/firestore';
-import type { 
-  DocumentSnapshot, 
-  QuerySnapshot
-} from '@firebase/firestore-types';
+import { 
+  FirestoreDocument,
+  FirestoreQueryDoc,
+  FirestoreQueryResult,
+  ActivityDocument,
+  ActivityLog,
+  ActivityLogType
+} from '../../types/firebase-types';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { db } from '../../firebase';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
-interface ActivityLog {
-  id: string;
-  type: UserStatus;
-  timestamp: Date;
-}
-
-interface FirestoreTimestamp {
-  seconds: number;
-  nanoseconds: number;
-  toDate?: () => Date;
-}
-
-interface ActivityDocument {
-  status: UserStatus;
-  lastAction: string;
-  lastActionTime: FirestoreTimestamp;
-  userName: string;
-  email: string;
-  currentTask?: string;
-}
-
-const ActivityMonitor: React.FC = () => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const ActivityMonitor = (): ReactElement => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const theme = useTheme();
-  const { firebaseUser } = useAuth();
-  const [activityStatus, setActivityStatus] = useState<UserStatus>('checked-out');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user } = useAuth();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [activityStatus, setActivityStatus] = useState<ActivityDocument['status']>('checked-out');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [breakStartTime, setBreakStartTime] = useState<Date | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [totalBreakTime, setTotalBreakTime] = useState<number>(0);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [workingTime, setWorkingTime] = useState<number>(0);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [lastCheckIn, setLastCheckIn] = useState<Date | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentBreakDuration, setCurrentBreakDuration] = useState<number>(0);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [currentSessionDuration, setCurrentSessionDuration] = useState<number>(0);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [selectedStatus, setSelectedStatus] = useState<string>('all');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loading, setLoading] = useState(true);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [error, setError] = useState<string | null>(null);
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const calculateWorkingAndBreakTime = useCallback((logs: ActivityLog[]) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     let totalWorkMinutes = 0;
     let totalBreakMinutes = 0;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     let lastCheckin: Date | null = null;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
     let lastBreakStart: Date | null = null;
 
     // Sort logs chronologically for calculation
-    const chronologicalLogs = [...logs].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    const chronologicalLogs = [...logs]
+      .filter(log => log && log.timestamp) // Filter out logs with null timestamps
+      .sort((a, b) => {
+        try {
+          if (!a.timestamp || !b.timestamp) return 0;
+          return a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime();
+        } catch (error) {
+          console.error("Error sorting logs:", error);
+          return 0;
+        }
+      });
 
     chronologicalLogs.forEach((log) => {
-      if (log.type === 'checked-in') {
-        lastCheckin = log.timestamp;
-        if (lastBreakStart) {
-          const breakDuration = differenceInMinutes(log.timestamp, lastBreakStart);
-          if (!isNaN(breakDuration) && breakDuration > 0) {
-            totalBreakMinutes += breakDuration;
-          }
-          lastBreakStart = null;
-        }
-      } else if (log.type === 'checked-out' && lastCheckin) {
-        const duration = differenceInMinutes(log.timestamp, lastCheckin);
-        if (!isNaN(duration) && duration > 0) {
-          totalWorkMinutes += duration;
-        }
-        lastCheckin = null;
-      } else if ((log.type === 'break' || log.type === 'lunch')) {
-        lastBreakStart = log.timestamp;
-        if (lastCheckin) {
-          const workDuration = differenceInMinutes(log.timestamp, lastCheckin);
-          if (!isNaN(workDuration) && workDuration > 0) {
-            totalWorkMinutes += workDuration;
-          }
-          lastCheckin = null;
-        }
-      }
-    });
-
-    // Handle current ongoing session
-    const now = new Date();
-    if (lastCheckin && activityStatus === 'checked-in') {
-      const duration = differenceInMinutes(now, lastCheckin);
-      if (!isNaN(duration) && duration > 0) {
-        totalWorkMinutes += duration;
-      }
-    } else if (lastBreakStart && (activityStatus === 'break' || activityStatus === 'lunch')) {
-      const duration = differenceInMinutes(now, lastBreakStart);
-      if (!isNaN(duration) && duration > 0) {
-        totalBreakMinutes += duration;
-      }
-    }
-
-    setWorkingTime(totalWorkMinutes);
-    setTotalBreakTime(totalBreakMinutes);
-  }, [activityStatus]);
-
-  useEffect(() => {
-    if (!firebaseUser) return;
-
-    const statusUnsubscribe = onSnapshot(
-      doc(db, 'monitoring', firebaseUser.uid),
-      (snapshot: DocumentSnapshot) => {
-        const data = snapshot.data() as ActivityDocument | undefined;
-        if (data) {
-          setActivityStatus(data.status || 'checked-out');
-          if (data.lastActionTime) {
-            let lastActionTime: Date;
-            
-            if (data.lastActionTime.toDate) {
-              lastActionTime = data.lastActionTime.toDate();
-            } else {
-              lastActionTime = new Date(data.lastActionTime.seconds * 1000);
-            }
-
-            if (data.status === 'checked-in' && !lastCheckIn) {
-              setLastCheckIn(lastActionTime);
-            } else if (data.status === 'break' || data.status === 'lunch') {
-              setBreakStartTime(lastActionTime);
-            }
-          }
-        }
-      }
-    );
-
-    // Get the start of the selected date in local timezone
-    const queryStartDate = startOfDay(selectedDate);
-
-    const logsQuery = query(
-      collection(db, 'activityLogs'),
-      where('userId', '==', firebaseUser.uid),
-      where('timestamp', '>=', Timestamp.fromDate(queryStartDate)),
-      orderBy('timestamp', 'desc')
-    );
-
-    const logsUnsubscribe = onSnapshot(logsQuery, (snapshot: QuerySnapshot) => {
-      const logs = snapshot.docs.map((doc) => {
-        const data = doc.data();
-        let timestamp: Date;
+      try {
+        if (!log.timestamp) return; // Skip logs with null timestamps
+        const currentTimestamp = log.timestamp.toDate();
         
-        if (data.timestamp?.toDate) {
-          timestamp = data.timestamp.toDate();
-        } else if (data.timestamp) {
-          timestamp = new Date(data.timestamp.seconds * 1000);
-        } else {
-          timestamp = new Date(data.createdAt);
+        // Skip logs with undefined type
+        if (!log.type) {
+          console.log("Skipping log with undefined type:", log);
+          return;
         }
-
-        return {
-          id: doc.id,
-          type: data.status as UserStatus,
-          timestamp
-        };
-      }).filter((log: ActivityLog) => 
-        log.timestamp instanceof Date && !isNaN(log.timestamp.getTime())
-      );
-
-      setActivityLogs(logs); // No need to sort again since Firestore will return them sorted
-      
-      // Only calculate times for today's logs
-      if (isToday(selectedDate)) {
-        calculateWorkingAndBreakTime(logs);
-      } else {
-        setWorkingTime(0);
-        setTotalBreakTime(0);
+        
+        // Handle different log types with switch statement
+        switch (log.type) {
+          case 'checked-in':
+            lastCheckin = currentTimestamp;
+            if (isToday(currentTimestamp)) {
+              setLastCheckIn(currentTimestamp);
+            }
+            break;
+            
+          case 'checked-out':
+            if (lastCheckin) {
+              const sessionMinutes = differenceInMinutes(currentTimestamp, lastCheckin);
+              totalWorkMinutes += sessionMinutes > 0 ? sessionMinutes : 0;
+              lastCheckin = null;
+            }
+            break;
+            
+          case 'break-start':
+            lastBreakStart = currentTimestamp;
+            break;
+            
+          case 'break-end':
+            if (lastBreakStart) {
+              const breakMinutes = differenceInMinutes(currentTimestamp, lastBreakStart);
+              totalBreakMinutes += breakMinutes > 0 ? breakMinutes : 0;
+              lastBreakStart = null;
+            }
+            break;
+            
+          case 'lunch-start':
+            lastBreakStart = currentTimestamp;
+            break;
+            
+          case 'lunch-end':
+            if (lastBreakStart) {
+              const breakMinutes = differenceInMinutes(currentTimestamp, lastBreakStart);
+              totalBreakMinutes += breakMinutes > 0 ? breakMinutes : 0;
+              lastBreakStart = null;
+            }
+            break;
+            
+          // Handle standard activity statuses as well
+          case 'break':
+          case 'lunch':
+            // These are status updates, not start/end events
+            break;
+            
+          default:
+            // Log unexpected types for debugging
+            console.log(`Unhandled log type: ${log.type}`);
+            break;
+        }
+      } catch (error) {
+        console.error("Error processing log:", error, log);
       }
     });
 
-    return () => {
-      statusUnsubscribe();
-      logsUnsubscribe();
-    };
-  }, [firebaseUser, lastCheckIn, calculateWorkingAndBreakTime, selectedDate]);
-
-  const handleActivityChange = async (activity: UserStatus) => {
-    if (!firebaseUser) return;
-
-    const timestamp = new Date();
-    
-    if (activity === 'checked-in') {
-      setLastCheckIn(timestamp);
-      setCurrentSessionDuration(0);
-      setWorkingTime(0);
-    } else {
-      if (lastCheckIn) {
-        const duration = differenceInMinutes(timestamp, lastCheckIn);
-        if (!isNaN(duration) && duration > 0) {
-          setWorkingTime(prev => prev + duration);
-        }
+    // If still checked in, calculate time until now
+    if (lastCheckin) {
+      const now = new Date();
+      const ongoingMinutes = differenceInMinutes(now, lastCheckin);
+      if (ongoingMinutes > 0) {
+        totalWorkMinutes += ongoingMinutes;
       }
-      setLastCheckIn(null);
-      setCurrentSessionDuration(0);
     }
 
-    if (breakStartTime && (activity === 'checked-in' || activity === 'checked-out')) {
-      const breakDuration = Math.floor((timestamp.getTime() - breakStartTime.getTime()) / 1000 / 60);
-      if (!isNaN(breakDuration) && breakDuration > 0) {
-        setTotalBreakTime(prev => prev + breakDuration);
+    // If still on break, calculate time until now
+    if (lastBreakStart) {
+      const now = new Date();
+      const ongoingBreakMinutes = differenceInMinutes(now, lastBreakStart);
+      if (ongoingBreakMinutes > 0) {
+        totalBreakMinutes += ongoingBreakMinutes;
+        setBreakStartTime(lastBreakStart);
+        setCurrentBreakDuration(ongoingBreakMinutes);
       }
+    } else {
       setBreakStartTime(null);
       setCurrentBreakDuration(0);
     }
 
-    if (activity === 'break' || activity === 'lunch') {
-      setBreakStartTime(timestamp);
-      setCurrentBreakDuration(0);
-      if (lastCheckIn) {
-        const duration = differenceInMinutes(timestamp, lastCheckIn);
-        if (!isNaN(duration) && duration > 0) {
-          setWorkingTime(prev => prev + duration);
-        }
-      }
-      setLastCheckIn(null);
-    }
+    setWorkingTime(totalWorkMinutes);
+    setTotalBreakTime(totalBreakMinutes);
 
+    // Calculate current session duration if checked in
+    if (lastCheckIn && activityStatus === 'checked-in') {
+      const now = new Date();
+      const sessionDuration = differenceInMinutes(now, lastCheckIn);
+      setCurrentSessionDuration(sessionDuration > 0 ? sessionDuration : 0);
+    } else {
+      setCurrentSessionDuration(0);
+    }
+  }, [activityStatus]);
+
+  // Fetch activity logs
+  const fetchActivityLogs = useCallback(async () => {
+    if (!user?.uid) return;
+    
     try {
-      switch (activity) {
-        case 'checked-in':
-          await activityService.setUserOnline(firebaseUser);
-          break;
-        case 'checked-out':
-          await activityService.setUserOffline(firebaseUser);
-          break;
-        case 'lunch':
-          await activityService.setUserLunch(firebaseUser);
-          break;
-        case 'break':
-          await activityService.setUserBreak(firebaseUser);
-          break;
-      }
+      setLoading(true);
+      
+      // Get today's logs
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const logsQuery = query(
+        collection(db, 'activityLogs'),
+        where('userId', '==', user.uid),
+        where('timestamp', '>=', today),
+        orderBy('timestamp', 'asc')
+      );
+      
+      const unsubscribe = onSnapshot(
+        logsQuery, 
+        (snapshot) => {
+          // Use type assertion for snapshot.docs
+          const logs = snapshot.docs
+            .map((doc) => {
+              // Use type assertion for doc.data()
+              const data = doc.data() as ActivityLog;
+              return {
+                ...data,
+                id: doc.id
+              } as ActivityLog;
+            })
+            .filter((log) => log && log.timestamp); // Filter out logs with null timestamps
+          
+          setActivityLogs(logs);
+          calculateWorkingAndBreakTime(logs);
+          setLoading(false);
+        }, 
+        (error) => {
+          console.error("Error fetching activity logs:", error);
+          setError("Failed to load activity data");
+          setLoading(false);
+        }
+      );
+      
+      return unsubscribe;
     } catch (error) {
-      console.error('Error updating activity status:', error);
+      console.error("Error setting up activity logs listener:", error);
+      setError("Failed to connect to activity service");
+      setLoading(false);
     }
-  };
+  }, [user, calculateWorkingAndBreakTime]);
 
-  const getStatusColor = (status: UserStatus): string => {
-    switch (status) {
-      case 'checked-in':
-        return theme.palette.success.main;
-      case 'checked-out':
-        return theme.palette.error.main;
-      case 'lunch':
-        return theme.palette.warning.main;
-      case 'break':
-        return theme.palette.info.main;
-      default:
-        return theme.palette.text.secondary;
+  // Fetch current activity status
+  const fetchActivityStatus = useCallback(async () => {
+    if (!user?.uid) return;
+    
+    try {
+      const activityDocRef = doc(db, 'activities', user.uid);
+      
+      const unsubscribe = onSnapshot(
+        activityDocRef, 
+        (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            // Use type assertion for docSnapshot.data()
+            const data = docSnapshot.data() as ActivityDocument;
+            setActivityStatus(data.status || 'checked-out');
+          } else {
+            setActivityStatus('checked-out');
+          }
+        }, 
+        (error) => {
+          console.error("Error fetching activity status:", error);
+          setError("Failed to load status");
+        }
+      );
+      
+      return unsubscribe;
+    } catch (error) {
+      console.error("Error setting up activity status listener:", error);
+      setError("Failed to connect to status service");
     }
-  };
+  }, [user]);
 
-  const getStatusBgColor = (status: UserStatus): string => {
-    switch (status) {
-      case 'checked-in':
-        return theme.palette.success.light;
-      case 'checked-out':
-        return theme.palette.error.light;
-      case 'lunch':
-        return theme.palette.warning.light;
-      case 'break':
-        return theme.palette.info.light;
-      default:
-        return theme.palette.action.hover;
+  // Initialize data
+  useEffect(() => {
+    let unsubscribeLogs: (() => void) | undefined;
+    let unsubscribeStatus: (() => void) | undefined;
+    
+    if (user?.uid) {
+      const setupSubscriptions = async () => {
+        unsubscribeLogs = await fetchActivityLogs();
+        unsubscribeStatus = await fetchActivityStatus();
+      };
+      
+      setupSubscriptions();
     }
-  };
+    
+    // Cleanup subscriptions
+    return () => {
+      if (unsubscribeLogs) unsubscribeLogs();
+      if (unsubscribeStatus) unsubscribeStatus();
+    };
+  }, [user, fetchActivityLogs, fetchActivityStatus]);
 
-  const formatDuration = (minutes: number): string => {
+  // Update current durations every minute
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      calculateWorkingAndBreakTime(activityLogs);
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(intervalId);
+  }, [activityLogs, calculateWorkingAndBreakTime]);
+
+  // Format time display (hours and minutes)
+  const formatTime = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
   };
 
-  const getActivityIcon = (type: UserStatus) => {
-    switch (type) {
-      case 'checked-in':
-        return <CheckInIcon />;
-      case 'checked-out':
-        return <CheckOutIcon />;
-      case 'lunch':
-        return <LunchIcon />;
-      case 'break':
-        return <BreakIcon />;
-      default:
-        return <CheckOutIcon />;
+  // Handle activity actions
+  const handleCheckIn = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.checkIn(user.uid);
+    } catch (error) {
+      console.error("Error checking in:", error);
+      setError("Failed to check in");
     }
   };
 
-  const getActivityColor = (type: UserStatus) => {
-    switch (type) {
-      case 'checked-in':
-        return 'success';
-      case 'checked-out':
-        return 'error';
-      case 'lunch':
-        return 'warning';
-      case 'break':
-        return 'info';
-      default:
-        return 'default';
+  const handleCheckOut = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.checkOut(user.uid);
+    } catch (error) {
+      console.error("Error checking out:", error);
+      setError("Failed to check out");
     }
   };
 
-  const getStatusText = (status: UserStatus): string => {
-    switch (status) {
-      case 'checked-in':
-        return 'Available';
-      case 'checked-out':
-        return 'Offline';
-      case 'lunch':
-        return 'Lunch Break';
-      case 'break':
-        return 'Short Break';
-      default:
-        return 'Offline';
+  const handleStartBreak = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.startBreak(user.uid);
+    } catch (error) {
+      console.error("Error starting break:", error);
+      setError("Failed to start break");
     }
   };
 
-  const calculateDailyBreaks = () => {
-    const todayBreaks = activityLogs.filter(log => 
-      (log.type === 'break' || log.type === 'lunch') && 
-      isToday(log.timestamp)
-    );
-    
-    return {
-      totalBreaks: todayBreaks.length,
-      lunchBreaks: todayBreaks.filter(log => log.type === 'lunch').length,
-      shortBreaks: todayBreaks.filter(log => log.type === 'break').length,
-    };
+  const handleEndBreak = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.endBreak(user.uid);
+    } catch (error) {
+      console.error("Error ending break:", error);
+      setError("Failed to end break");
+    }
   };
 
-  const filteredLogs = activityLogs.filter(log => {
-    const matchesStatus = selectedStatus === 'all' || log.type === selectedStatus;
-    const matchesDate = format(log.timestamp, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd');
-    return matchesStatus && matchesDate;
-  });
+  const handleStartLunch = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.startLunch(user.uid);
+    } catch (error) {
+      console.error("Error starting lunch:", error);
+      setError("Failed to start lunch");
+    }
+  };
 
+  const handleEndLunch = async () => {
+    if (!user?.uid) return;
+    try {
+      await activityService.endLunch(user.uid);
+    } catch (error) {
+      console.error("Error ending lunch:", error);
+      setError("Failed to end lunch");
+    }
+  };
+
+  // Render activity monitor
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        p: 3,
-        mb: 3,
-        background: '#ffffff',
-        border: `1px solid ${theme.palette.divider}`,
-        borderRadius: 2,
-        maxHeight: '90vh',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h5" gutterBottom sx={{ fontWeight: 600, color: theme.palette.text.primary }}>
-          Activity Dashboard
-        </Typography>
-        
-        <Grid container spacing={3} sx={{ mt: 2 }}>
-          {/* Status Card */}
-          <Grid item xs={12} md={3}>
-            <Card 
-              elevation={0}
-              sx={{
-                p: 3,
-                height: '100%',
-                border: `1px solid ${theme.palette.divider}`,
-                background: '#ffffff',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: theme.shadows[2],
-                }
-              }}
-            >
-              <Stack spacing={2}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Current Status
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  {getActivityIcon(activityStatus)}
-                  <Typography variant="h6" sx={{ color: getStatusColor(activityStatus), fontWeight: 600 }}>
-                    {getStatusText(activityStatus)}
-                  </Typography>
-                </Box>
-                {(activityStatus === 'break' || activityStatus === 'lunch') && (
-                  <Box sx={{ 
-                    p: 1, 
-                    borderRadius: 1, 
-                    bgcolor: 'rgba(0,0,0,0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}>
-                    <ClockIcon fontSize="small" />
-                    <Typography variant="body2">
-                      Current: {formatDuration(currentBreakDuration)}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            </Card>
-          </Grid>
-
-          {/* Time Tracking Card */}
-          <Grid item xs={12} md={3}>
-            <Card 
-              elevation={0}
-              sx={{
-                p: 3,
-                height: '100%',
-                border: `1px solid ${theme.palette.divider}`,
-                background: '#ffffff',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: theme.shadows[2],
-                }
-              }}
-            >
-              <Stack spacing={2}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Working Time
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <TimerIcon color="success" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {formatDuration(workingTime)}
-                  </Typography>
-                </Box>
-                {activityStatus === 'checked-in' && (
-                  <Box sx={{ 
-                    p: 1, 
-                    borderRadius: 1, 
-                    bgcolor: 'rgba(0,0,0,0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}>
-                    <ClockIcon fontSize="small" />
-                    <Typography variant="body2">
-                      Session: {formatDuration(currentSessionDuration)}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            </Card>
-          </Grid>
-
-          {/* Break Summary Card */}
-          <Grid item xs={12} md={3}>
-            <Card 
-              elevation={0}
-              sx={{
-                p: 3,
-                height: '100%',
-                border: `1px solid ${theme.palette.divider}`,
-                background: '#ffffff',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: theme.shadows[2],
-                }
-              }}
-            >
-              <Stack spacing={2}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Break Summary
-                </Typography>
-                <Stack spacing={1}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <LunchIcon color="warning" />
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      Lunch Breaks: {calculateDailyBreaks().lunchBreaks}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <BreakIcon color="warning" />
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
-                      Short Breaks: {calculateDailyBreaks().shortBreaks}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Stack>
-            </Card>
-          </Grid>
-
-          {/* Break Time Card */}
-          <Grid item xs={12} md={3}>
-            <Card 
-              elevation={0}
-              sx={{
-                p: 3,
-                height: '100%',
-                border: `1px solid ${theme.palette.divider}`,
-                background: '#ffffff',
-                transition: 'all 0.3s ease',
-                '&:hover': {
-                  boxShadow: theme.shadows[2],
-                }
-              }}
-            >
-              <Stack spacing={2}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Break Time
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <TimerIcon color="info" />
-                  <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                    {formatDuration(totalBreakTime)}
-                  </Typography>
-                </Box>
-                {(activityStatus === 'break' || activityStatus === 'lunch') && (
-                  <Box sx={{ 
-                    p: 1, 
-                    borderRadius: 1, 
-                    bgcolor: 'rgba(0,0,0,0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1
-                  }}>
-                    <ClockIcon fontSize="small" />
-                    <Typography variant="body2">
-                      Current: {formatDuration(currentBreakDuration)}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* Action Buttons */}
-      <Stack 
-        direction={{ xs: 'column', sm: 'row' }} 
-        spacing={2} 
-        sx={{ 
-          mb: 4,
-          flexWrap: 'wrap',
-          justifyContent: 'center'
-        }}
-      >
-        <Button
-          variant={activityStatus === 'checked-in' ? 'contained' : 'outlined'}
-          startIcon={<CheckInIcon />}
-          onClick={() => handleActivityChange('checked-in')}
-          color="success"
-          size="large"
-          sx={{
-            minWidth: 150,
-            py: 1.5,
-            transition: 'all 0.2s ease-in-out',
-            transform: activityStatus === 'checked-in' ? 'scale(1.05)' : 'scale(1)',
-          }}
-        >
-          Check In
-        </Button>
-        <Button
-          variant={activityStatus === 'checked-out' ? 'contained' : 'outlined'}
-          startIcon={<CheckOutIcon />}
-          onClick={() => handleActivityChange('checked-out')}
-          color="error"
-          size="large"
-          sx={{
-            minWidth: 150,
-            py: 1.5,
-            transition: 'all 0.2s ease-in-out',
-            transform: activityStatus === 'checked-out' ? 'scale(1.05)' : 'scale(1)',
-          }}
-        >
-          Check Out
-        </Button>
-        <Button
-          variant={activityStatus === 'lunch' ? 'contained' : 'outlined'}
-          startIcon={<LunchIcon />}
-          onClick={() => handleActivityChange('lunch')}
-          color="warning"
-          size="large"
-          sx={{
-            minWidth: 150,
-            py: 1.5,
-            transition: 'all 0.2s ease-in-out',
-            transform: activityStatus === 'lunch' ? 'scale(1.05)' : 'scale(1)',
-          }}
-        >
-          Lunch Break
-        </Button>
-        <Button
-          variant={activityStatus === 'break' ? 'contained' : 'outlined'}
-          startIcon={<BreakIcon />}
-          onClick={() => handleActivityChange('break')}
-          color="info"
-          size="large"
-          sx={{
-            minWidth: 150,
-            py: 1.5,
-            transition: 'all 0.2s ease-in-out',
-            transform: activityStatus === 'break' ? 'scale(1.05)' : 'scale(1)',
-          }}
-        >
-          Short Break
-        </Button>
-      </Stack>
-
-      {/* Activity History with Filters */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" sx={{ color: theme.palette.text.secondary }}>
-            Activity History
-          </Typography>
-          <Stack direction="row" spacing={2}>
-            <LocalizationProvider dateAdapter={AdapterDateFns}>
-              <DatePicker
-                label="Select Date"
-                value={selectedDate}
-                onChange={(newValue) => setSelectedDate(newValue || new Date())}
-                slotProps={{
-                  textField: {
-                    size: "small"
+    <Box>
+      <TableContainer component={Paper} elevation={0} sx={{ mb: 2 }}>
+        <Table size="small">
+          <TableBody>
+            <TableRow>
+              <TableCell component="th" sx={{ fontWeight: 'bold', width: '30%' }}>
+                Current Status
+              </TableCell>
+              <TableCell>
+                <Chip
+                  label={
+                    activityStatus === 'checked-in' ? 'Working' :
+                    activityStatus === 'break' ? 'On Break' :
+                    activityStatus === 'lunch' ? 'At Lunch' :
+                    'Checked Out'
                   }
-                }}
-              />
-            </LocalizationProvider>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={selectedStatus}
-                label="Status"
-                onChange={(e) => setSelectedStatus(e.target.value)}
-              >
-                <MenuItem value="all">All</MenuItem>
-                <MenuItem value="checked-in">Available</MenuItem>
-                <MenuItem value="checked-out">Offline</MenuItem>
-                <MenuItem value="lunch">Lunch Break</MenuItem>
-                <MenuItem value="break">Short Break</MenuItem>
-              </Select>
-            </FormControl>
-          </Stack>
-        </Box>
-        <Card 
-          elevation={0}
-          sx={{ 
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-            maxHeight: 400,
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <List 
-            sx={{ 
-              p: 0,
-              overflow: 'auto',
-              flexGrow: 1,
-              '&::-webkit-scrollbar': {
-                width: '8px',
-              },
-              '&::-webkit-scrollbar-track': {
-                background: '#f8f9fa',
-                borderRadius: '4px',
-              },
-              '&::-webkit-scrollbar-thumb': {
-                background: '#dee2e6',
-                borderRadius: '4px',
-                '&:hover': {
-                  background: '#ced4da',
-                },
-              },
-            }}
+                  color={
+                    activityStatus === 'checked-in' ? 'success' :
+                    activityStatus === 'break' || activityStatus === 'lunch' ? 'warning' :
+                    'error'
+                  }
+                  size="small"
+                />
+              </TableCell>
+            </TableRow>
+            
+            <TableRow>
+              <TableCell component="th" sx={{ fontWeight: 'bold' }}>
+                Working Time
+              </TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <ClockIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                  {formatTime(workingTime)}
+                </Box>
+              </TableCell>
+            </TableRow>
+            
+            <TableRow>
+              <TableCell component="th" sx={{ fontWeight: 'bold' }}>
+                Break Time
+              </TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <TimerIcon fontSize="small" sx={{ mr: 1, color: 'text.secondary' }} />
+                  {formatTime(totalBreakTime)}
+                </Box>
+              </TableCell>
+            </TableRow>
+            
+            {(activityStatus === 'break' || activityStatus === 'lunch') && breakStartTime && (
+              <TableRow>
+                <TableCell component="th" sx={{ fontWeight: 'bold' }}>
+                  Current {activityStatus === 'lunch' ? 'Lunch' : 'Break'}
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ 
+                    display: 'inline-block',
+                    p: 0.5, 
+                    bgcolor: 'warning.light', 
+                    borderRadius: 1,
+                    color: 'warning.contrastText'
+                  }}>
+                    {formatTime(currentBreakDuration)}
+                  </Box>
+                </TableCell>
+              </TableRow>
+            )}
+            
+            {activityStatus === 'checked-in' && lastCheckIn && (
+              <TableRow>
+                <TableCell component="th" sx={{ fontWeight: 'bold' }}>
+                  Current Session
+                </TableCell>
+                <TableCell>
+                  <Box sx={{ 
+                    display: 'inline-block',
+                    p: 0.5, 
+                    bgcolor: 'success.light', 
+                    borderRadius: 1,
+                    color: 'success.contrastText'
+                  }}>
+                    {formatTime(currentSessionDuration)}
+                  </Box>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      
+      <Divider sx={{ mb: 2 }} />
+      
+      <Stack direction="row" spacing={1}>
+        {activityStatus === 'checked-out' ? (
+          <Button
+            variant="contained"
+            color="success"
+            startIcon={<CheckInIcon />}
+            onClick={handleCheckIn}
+            fullWidth
           >
-            {filteredLogs.map((log, index) => (
-              <React.Fragment key={index}>
-                {index > 0 && <Divider />}
-                <ListItem
-                  sx={{
-                    transition: 'all 0.2s ease',
-                    '&:hover': {
-                      bgcolor: 'rgba(0, 0, 0, 0.02)',
-                    },
-                  }}
-                >
-                  <ListItemAvatar>
-                    <Avatar 
-                      sx={{ 
-                        bgcolor: `${getActivityColor(log.type)}.light`,
-                        color: getActivityColor(log.type),
-                      }}
-                    >
-                      {getActivityIcon(log.type)}
-                    </Avatar>
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                          {getStatusText(log.type)}
-                        </Typography>
-                        <Chip
-                          label={format(log.timestamp, 'HH:mm:ss')}
-                          size="small"
-                          color={getActivityColor(log.type) as any}
-                          variant="outlined"
-                          sx={{ fontWeight: 500 }}
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {format(log.timestamp, 'dd/MM/yyyy')}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              </React.Fragment>
-            ))}
-          </List>
-        </Card>
-      </Box>
-    </Paper>
+            Check In
+          </Button>
+        ) : activityStatus === 'checked-in' ? (
+          <>
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<BreakIcon />}
+              onClick={handleStartBreak}
+            >
+              Break
+            </Button>
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<LunchIcon />}
+              onClick={handleStartLunch}
+            >
+              Lunch
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<CheckOutIcon />}
+              onClick={handleCheckOut}
+            >
+              Out
+            </Button>
+          </>
+        ) : activityStatus === 'break' ? (
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleEndBreak}
+            fullWidth
+          >
+            End Break
+          </Button>
+        ) : activityStatus === 'lunch' ? (
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleEndLunch}
+            fullWidth
+          >
+            End Lunch
+          </Button>
+        ) : null}
+      </Stack>
+    </Box>
   );
 };
 

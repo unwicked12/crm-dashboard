@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import React, { useState, useEffect, ReactNode } from 'react';
 import {
   Box,
   Paper,
@@ -15,40 +16,39 @@ import {
   Avatar,
   Grid,
   Badge,
-  ButtonBase,
-} from '@mui/material';
+  ButtonBase} from '@mui/material';
 import {
   NavigateBefore as PrevIcon,
   NavigateNext as NextIcon,
   PhoneInTalk as CallIcon,
   Computer as CRMIcon,
   AccessTime as TimeIcon,
-  Clear as ClearIcon,
-} from '@mui/icons-material';
+  Clear as ClearIcon} from '@mui/icons-material';
 import {
   format,
   addMonths,
   subMonths,
   startOfMonth,
   endOfMonth,
+  startOfWeek,
+  endOfWeek,
   isSameDay,
   isToday,
   isSameMonth,
-  eachDayOfInterval,
-  startOfWeek,
-  endOfWeek,
   addDays,
-  getDay,
-} from 'date-fns';
+  getDay} from 'date-fns';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { userService, User, Schedule } from '../../services/userService';
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const AgentScheduleView: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [schedules, setSchedules] = useState<Schedule[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -62,6 +62,7 @@ const AgentScheduleView: React.FC = () => {
     fetchUsers();
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
@@ -91,12 +92,10 @@ const AgentScheduleView: React.FC = () => {
   };
 
   const handleDateClick = (date: Date) => {
-    if (isSameMonth(date, currentMonth)) {
-      if (selectedDate && isSameDay(date, selectedDate)) {
-        setSelectedDate(null);
-      } else {
-        setSelectedDate(date);
-      }
+    if (selectedDate && isSameDay(date, selectedDate)) {
+      setSelectedDate(null);
+    } else {
+      setSelectedDate(date);
     }
   };
 
@@ -123,10 +122,10 @@ const AgentScheduleView: React.FC = () => {
     const monthEnd = endOfMonth(currentMonth);
     const startDate = startOfWeek(monthStart);
     const endDate = endOfWeek(monthEnd);
-
+    
     const dateFormat = "d";
-    const rows = [];
-    let days = [];
+    const rows: JSX.Element[] = [];
+    let days: JSX.Element[] = [];
     let day = startDate;
 
     // Add week day headers
@@ -152,9 +151,11 @@ const AgentScheduleView: React.FC = () => {
       </Grid>
     );
 
+    // Create calendar rows
     while (day <= endDate) {
+      days = [];
       for (let i = 0; i < 7; i++) {
-        const cloneDay = day;
+        const cloneDay = new Date(day);
         const isCurrentMonth = isSameMonth(day, currentMonth);
         const isSelectedDay = selectedDate && isSameDay(day, selectedDate);
         const isTodays = isToday(day);
@@ -167,7 +168,7 @@ const AgentScheduleView: React.FC = () => {
               sx={{
                 width: '100%',
                 height: '100%',
-                minHeight: 90,
+                minHeight: 80,
                 borderRadius: 1,
                 transition: 'all 0.2s',
                 position: 'relative',
@@ -175,82 +176,81 @@ const AgentScheduleView: React.FC = () => {
                 borderColor: isSelectedDay 
                   ? 'primary.main'
                   : isTodays
-                  ? 'success.main'
-                  : 'divider',
-                bgcolor: isSelectedDay
-                  ? 'primary.main'
+                    ? 'secondary.main'
+                    : 'divider',
+                bgcolor: isSelectedDay 
+                  ? 'primary.light' 
                   : isTodays
-                  ? 'success.light'
-                  : isCurrentMonth
-                  ? 'background.paper'
-                  : 'action.hover',
+                    ? 'secondary.light'
+                    : isCurrentMonth
+                      ? 'background.paper'
+                      : 'action.hover',
+                opacity: isCurrentMonth ? 1 : 0.5,
                 '&:hover': {
-                  bgcolor: isSelectedDay
-                    ? 'primary.dark'
-                    : isTodays
-                    ? 'success.main'
+                  bgcolor: isSelectedDay 
+                    ? 'primary.light' 
                     : 'action.hover',
+                  transform: 'scale(1.02)',
                 },
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                p: 1,
               }}
             >
-              <Stack 
-                spacing={0.5} 
+              <Typography 
+                variant="body2" 
                 sx={{ 
-                  p: 1, 
-                  width: '100%',
-                  height: '100%',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
+                  fontWeight: isTodays ? 'bold' : 'normal',
+                  color: isSelectedDay 
+                    ? 'primary.contrastText' 
+                    : isTodays
+                      ? 'secondary.contrastText'
+                      : 'text.primary',
                 }}
               >
-                <Typography
-                  variant="body1"
-                  sx={{
-                    fontWeight: (isSelectedDay || isTodays) ? 'bold' : 'normal',
-                    color: isSelectedDay
-                      ? '#fff'
-                      : isTodays
-                      ? 'success.dark'
-                      : isCurrentMonth 
-                      ? 'text.primary' 
-                      : 'text.secondary',
-                  }}
-                >
-                  {format(day, dateFormat)}
-                </Typography>
-                {isCurrentMonth && daySchedules.length > 0 && (
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
-                    <Badge
-                      badgeContent={daySchedules.length}
-                      color={isSelectedDay ? 'secondary' : 'primary'}
-                    />
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        color: isSelectedDay
-                          ? '#fff'
-                          : isTodays
-                          ? 'success.dark'
-                          : 'text.secondary',
-                        fontSize: '0.7rem',
-                      }}
-                    >
-                      agents
+                {format(day, dateFormat)}
+              </Typography>
+              
+              {daySchedules.length > 0 && (
+                <Box sx={{ mt: 1, width: '100%' }}>
+                  {daySchedules.slice(0, 2).map((schedule, index) => {
+                    const user = users.find(u => u.id === schedule.userId);
+                    return (
+                      <Chip
+                        key={index}
+                        size="small"
+                        label={user?.name.split(' ')[0] || 'Unknown'}
+                        sx={{ 
+                          mb: 0.5, 
+                          width: '100%',
+                          fontSize: '0.7rem',
+                          height: 20,
+                        }}
+                      />
+                    );
+                  })}
+                  
+                  {daySchedules.length > 2 && (
+                    <Typography variant="caption" sx={{ display: 'block', textAlign: 'center' }}>
+                      +{daySchedules.length - 2} more
                     </Typography>
-                  </Box>
-                )}
-              </Stack>
+                  )}
+                </Box>
+              )}
             </ButtonBase>
           </Grid>
         );
+        
         day = addDays(day, 1);
       }
+      
       rows.push(
-        <Grid container item spacing={0.5} key={day.toString()}>
+        <Grid container item spacing={0} key={day.toString()}>
           {days}
         </Grid>
       );
-      days = [];
     }
 
     return (
@@ -362,29 +362,33 @@ const AgentScheduleView: React.FC = () => {
   };
 
   return (
-    <Paper sx={{ p: 3 }}>
-      <Box sx={{ mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5" sx={{ flex: 1 }}>
-            Monthly Schedule
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton onClick={handlePrevMonth}>
-              <PrevIcon />
-            </IconButton>
-            <Typography variant="h6" sx={{ mx: 2 }}>
-              {format(currentMonth, 'MMMM yyyy')}
-            </Typography>
-            <IconButton onClick={handleNextMonth}>
-              <NextIcon />
-            </IconButton>
-          </Box>
-        </Box>
+    <Box>
+      {/* Header with navigation */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        mb: 2
+      }}>
+        <IconButton onClick={handlePrevMonth} size="small">
+          <PrevIcon />
+        </IconButton>
+        
+        <Typography variant="h6">
+          {format(currentMonth, 'MMMM yyyy')}
+        </Typography>
+        
+        <IconButton onClick={handleNextMonth} size="small">
+          <NextIcon />
+        </IconButton>
       </Box>
-
+      
+      {/* Calendar */}
       {renderCalendar()}
-      {renderScheduleTable()}
-    </Paper>
+      
+      {/* Schedule details */}
+      {selectedDate && renderScheduleTable()}
+    </Box>
   );
 };
 

@@ -1,6 +1,6 @@
 declare module 'jspdf' {
   class jsPDF {
-    constructor(options?: { orientation?: string; unit?: string; format?: string });
+    constructor(options?: { orientation?: string; unit?: string; format?: string; compress?: boolean });
     internal: {
       pageSize: {
         getWidth: () => number;
@@ -14,6 +14,18 @@ declare module 'jspdf' {
     setFillColor(r: number, g: number, b: number): void;
     save(filename: string): void;
     autoTable: (options: any) => jsPDF;
+    addImage(
+      imageData: string | HTMLImageElement | HTMLCanvasElement,
+      format: string,
+      x: number,
+      y: number,
+      width?: number,
+      height?: number,
+      alias?: string,
+      compression?: 'NONE' | 'FAST' | 'MEDIUM' | 'SLOW',
+      rotation?: number
+    ): jsPDF;
+    output(type: 'datauristring' | 'dataurlstring' | 'dataurl' | 'datauri' | 'pdfobjectnewwindow' | 'pdfjsnewwindow' | 'dataurlnewwindow', options?: { filename?: string; compress?: boolean }): string | Window | boolean;
   }
   export default jsPDF;
 }

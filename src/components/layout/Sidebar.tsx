@@ -1,5 +1,7 @@
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import React from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Box,
   Drawer,
@@ -7,28 +9,36 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemButton,
   Typography,
   Divider,
-  Button,
+  ListItemButton,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
   AccessTime as ActivityIcon,
   BeachAccess as HolidayIcon,
-  Group as AgentsIcon,
-  Assessment as ReportIcon,
-  AdminPanelSettings as AdminIcon,
-  Logout as LogoutIcon,
-  Assessment as AssessmentIcon,
-  MenuBook as MenuBookIcon,
+  CalendarMonth as CalendarMonthIcon,
   LibraryBooks as LibraryBooksIcon,
-  Person as PersonIcon
+  SupervisorAccount as HRIcon,
+  AdminPanelSettings as AdminIcon,
+  Assessment as AssessmentIcon,
+  Person as PersonIcon,
+  Approval as ApprovalIcon,
+  CalendarMonth as CalendarIcon,
+  People as PeopleIcon,
+  EventBusy as EventBusyIcon,
+  SupervisorAccount as SupervisorAccountIcon,
+  ListAlt as ListAltIcon,
+  Layers as LayersIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useAuth } from '../../contexts/AuthContext';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import logoImage from '../../logo.png';
 
-const DRAWER_WIDTH = 240;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const DRAWER_WIDTH = 280;
 
 interface SidebarProps {
   open: boolean;
@@ -40,50 +50,58 @@ interface NavItem {
   icon: JSX.Element;
   path: string;
   adminOnly?: boolean;
-  visibleTo?: (user: any) => boolean;
+  hrOnly?: boolean;
+  managerOnly?: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const navItems: NavItem[] = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-  { text: 'Activity', icon: <ActivityIcon />, path: '/activity' },
-  { text: 'Schedule', icon: <HolidayIcon />, path: '/schedule' },
+  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+  { text: 'Schedule', icon: <CalendarMonthIcon />, path: '/schedule' },
   { text: 'Knowledge Base', icon: <LibraryBooksIcon />, path: '/knowledge-base' },
-  { 
-    text: 'Admin Dashboard', 
-    icon: <AdminIcon />, 
-    path: '/admin',
-    adminOnly: true,
-    visibleTo: (user) => user.role === 'admin'
-  }
 ];
 
-const adminMenuItems: NavItem[] = [
-  {
-    text: 'Rapports',
-    icon: <AssessmentIcon />,
-    path: '/admin/reports'
-  },
-  {
-    text: 'User Management',
-    icon: <PersonIcon />,
-    path: '/admin/users'
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const hrItems: NavItem[] = [
+  { text: 'HR Dashboard', icon: <HRIcon />, path: '/hr', hrOnly: true },
+  { text: 'Employee Management', icon: <PeopleIcon />, path: '/hr/employees', hrOnly: true },
+  { text: 'Leave Management', icon: <EventBusyIcon />, path: '/hr/leave', hrOnly: true },
+  { text: 'Performance Reviews', icon: <AssessmentIcon />, path: '/hr/performance', hrOnly: true },
 ];
 
+// Manager items
+const managerItems: NavItem[] = [
+  { text: 'Manager Dashboard', icon: <SupervisorAccountIcon />, path: '/manager', managerOnly: true },
+];
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const adminItems: NavItem[] = [
+  { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin', adminOnly: true },
+  { text: 'Request Management', icon: <ListAltIcon />, path: '/admin/requests', adminOnly: true },
+  { text: 'User Management', icon: <PersonIcon />, path: '/admin/users', adminOnly: true },
+  { text: 'User Tiers', icon: <LayersIcon />, path: '/admin/tiers', adminOnly: true },
+  { text: 'Article Approval', icon: <ApprovalIcon />, path: '/admin/article-approval', adminOnly: true },
+];
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const navigate = useNavigate();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const location = useLocation();
-  const { user, logout } = useAuth();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user, signOut } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const isHR = user?.role === 'hr';
 
-  const filteredNavItems = navItems.filter(item => 
-    !item.adminOnly || (item.visibleTo ? item.visibleTo(user) : user?.role === 'admin')
-  );
+  console.log('Current user role:', user?.role, 'isHR:', isHR, 'isAdmin:', isAdmin); // Debug log
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleLogout = () => {
-    logout();
+    signOut();
     navigate('/login');
   };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Logo Section */}
@@ -110,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
 
       {/* Navigation List */}
       <List sx={{ flex: 1, px: 2 }}>
-        {filteredNavItems.map((item) => (
+        {navItems.map((item) => (
           <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
             <ListItemButton
               onClick={() => navigate(item.path)}
@@ -137,7 +155,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
               >
                 {item.icon}
               </ListItemIcon>
-              <ListItemText 
+              <ListItemText
                 primary={item.text}
                 primaryTypographyProps={{
                   fontSize: '0.875rem',
@@ -147,43 +165,132 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
             </ListItemButton>
           </ListItem>
         ))}
-        {user?.role === 'admin' && adminMenuItems.map((item) => (
-          <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
-            <ListItemButton
-              onClick={() => navigate(item.path)}
-              selected={location.pathname === item.path}
-              sx={{
-                borderRadius: 1,
-                '&.Mui-selected': {
-                  backgroundColor: 'primary.main',
-                  color: 'primary.contrastText',
-                  '&:hover': {
-                    backgroundColor: 'primary.dark',
-                  },
-                  '& .MuiListItemIcon-root': {
-                    color: 'primary.contrastText',
-                  },
-                },
-              }}
-            >
-              <ListItemIcon
-                sx={{
-                  minWidth: 40,
-                  color: location.pathname === item.path ? 'inherit' : 'text.secondary',
-                }}
-              >
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText 
-                primary={item.text}
-                primaryTypographyProps={{
-                  fontSize: '0.875rem',
-                  fontWeight: location.pathname === item.path ? 600 : 400,
-                }}
-              />
-            </ListItemButton>
-          </ListItem>
-        ))}
+
+        {(isHR || isAdmin) && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            {/* Manager Section */}
+            {managerItems.map((item) => (
+              <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
+                <ListItemButton
+                  onClick={() => navigate(item.path)}
+                  selected={location.pathname === item.path}
+                  sx={{
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'primary.contrastText',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 40,
+                      color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: location.pathname === item.path ? 'bold' : 'normal',
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            
+            {/* HR Section */}
+            {hrItems.map((item) => (
+              <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
+                <ListItemButton
+                  onClick={() => navigate(item.path)}
+                  selected={location.pathname === item.path}
+                  sx={{
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'primary.contrastText',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 40,
+                      color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      variant: 'body2',
+                      fontWeight: location.pathname === item.path ? 'bold' : 'normal',
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </>
+        )}
+
+        {isAdmin && (
+          <>
+            <Divider sx={{ my: 2 }} />
+            {adminItems.map((item) => (
+              <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
+                <ListItemButton
+                  onClick={() => navigate(item.path)}
+                  selected={location.pathname === item.path}
+                  sx={{
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'primary.contrastText',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 40,
+                      color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      fontSize: '0.875rem',
+                      fontWeight: location.pathname === item.path ? 600 : 400,
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </>
+        )}
       </List>
 
       {/* User Info Section */}
@@ -218,7 +325,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
           <ListItemIcon sx={{ minWidth: 40, color: 'error.main' }}>
             <LogoutIcon />
           </ListItemIcon>
-          <ListItemText 
+          <ListItemText
             primary="Logout"
             primaryTypographyProps={{
               fontSize: '0.875rem',

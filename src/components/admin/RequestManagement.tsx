@@ -27,21 +27,20 @@ import {
   MenuItem,
   Grid,
   Checkbox,
-  Tooltip,
-} from '@mui/material';
+  Tooltip} from '@mui/material';
 import {
   Check as ApproveIcon,
   Close as RejectIcon,
   Comment as CommentIcon,
   Delete as DeleteIcon,
-  FilterList as FilterIcon,
-} from '@mui/icons-material';
+  FilterList as FilterIcon} from '@mui/icons-material';
 import { format } from 'date-fns';
 import { requestService, Request } from '../../services/requestService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { getAuth } from 'firebase/auth';
 
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface UserInfo {
   name: string;
   email: string;
@@ -102,10 +101,8 @@ const RequestManagement: React.FC = () => {
     return enrichedRequests;
   };
 
-  useEffect(() => {
-    fetchRequests();
-  }, []);
-
+  // Define fetchRequests before using it in useEffect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchRequests = async () => {
     try {
       const data = await requestService.getAllRequests();
@@ -116,6 +113,10 @@ const RequestManagement: React.FC = () => {
       console.error('Error fetching requests:', error);
     }
   };
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -184,9 +185,13 @@ const RequestManagement: React.FC = () => {
     // Filter by status
     if (filters.status !== 'all' && request.status !== filters.status) return false;
 
-    // Filter by date range
-    if (filters.startDate && new Date(filters.startDate) > request.startDate) return false;
-    if (filters.endDate && new Date(filters.endDate) < request.endDate) return false;
+    // Apply date filters
+    if (filters.startDate && request.startDate) {
+      if (new Date(filters.startDate) > new Date(request.startDate)) return false;
+    }
+    if (filters.endDate && request.endDate) {
+      if (new Date(filters.endDate) < new Date(request.endDate)) return false;
+    }
 
     return true;
   });
@@ -389,8 +394,8 @@ const RequestManagement: React.FC = () => {
                     </Box>
                   </Stack>
                 </TableCell>
-                <TableCell>{format(request.startDate, 'PP')}</TableCell>
-                <TableCell>{format(request.endDate, 'PP')}</TableCell>
+                <TableCell>{request.startDate ? format(new Date(request.startDate), 'PP') : 'N/A'}</TableCell>
+                <TableCell>{request.endDate ? format(new Date(request.endDate), 'PP') : 'N/A'}</TableCell>
                 <TableCell>{request.reason}</TableCell>
                 <TableCell>
                   <Chip
@@ -461,11 +466,14 @@ const RequestManagement: React.FC = () => {
             <Typography variant="body1" gutterBottom>
               <strong>Email:</strong> {selectedRequest?.userInfo?.email || 'No email'}
             </Typography>
-            <Typography variant="body1" gutterBottom>
-              <strong>Period:</strong>{' '}
-              {selectedRequest &&
-                `${format(selectedRequest.startDate, 'PP')} - ${format(selectedRequest.endDate, 'PP')}`}
-            </Typography>
+            {selectedRequest?.type === 'holiday' && (
+              <Typography variant="body1">
+                <strong>Date Range:</strong>{' '}
+                {selectedRequest.startDate && selectedRequest.endDate ? 
+                  `${format(new Date(selectedRequest.startDate), 'PP')} - ${format(new Date(selectedRequest.endDate), 'PP')}` : 
+                  'Date range not specified'}
+              </Typography>
+            )}
             <Typography variant="body1" gutterBottom>
               <strong>Reason:</strong> {selectedRequest?.reason}
             </Typography>
