@@ -166,45 +166,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
         {(isHR || isAdmin) && (
           <>
             <Divider sx={{ my: 2 }} />
-            {/* Manager Section */}
-            {managerItems.map((item) => (
-              <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
-                <ListItemButton
-                  onClick={() => navigate(item.path)}
-                  selected={location.pathname === item.path}
-                  sx={{
-                    borderRadius: 1,
-                    '&.Mui-selected': {
-                      backgroundColor: 'primary.main',
-                      color: 'primary.contrastText',
-                      '&:hover': {
-                        backgroundColor: 'primary.dark',
-                      },
-                      '& .MuiListItemIcon-root': {
-                        color: 'primary.contrastText',
-                      },
-                    },
-                  }}
-                >
-                  <ListItemIcon
-                    sx={{
-                      minWidth: 40,
-                      color: location.pathname === item.path ? 'inherit' : 'text.secondary',
-                    }}
-                  >
-                    {item.icon}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={item.text}
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      fontWeight: location.pathname === item.path ? 'bold' : 'normal',
-                    }}
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-            
             {/* HR Section */}
             {hrItems.map((item) => (
               <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
@@ -237,7 +198,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
                     primary={item.text}
                     primaryTypographyProps={{
                       variant: 'body2',
-                      fontWeight: location.pathname === item.path ? 'bold' : 'normal',
+                      fontWeight: location.pathname === item.path ? 600 : 400,
                     }}
                   />
                 </ListItemButton>
@@ -280,6 +241,45 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
                     primary={item.text}
                     primaryTypographyProps={{
                       fontSize: '0.875rem',
+                      fontWeight: location.pathname === item.path ? 600 : 400,
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+
+            {/* Manager Section - Only visible to admin users */}
+            {managerItems.map((item) => (
+              <ListItem key={item.path} disablePadding sx={{ mb: 1 }}>
+                <ListItemButton
+                  onClick={() => navigate(item.path)}
+                  selected={location.pathname === item.path}
+                  sx={{
+                    borderRadius: 1,
+                    '&.Mui-selected': {
+                      backgroundColor: 'primary.main',
+                      color: 'primary.contrastText',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                      '& .MuiListItemIcon-root': {
+                        color: 'primary.contrastText',
+                      },
+                    },
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 40,
+                      color: location.pathname === item.path ? 'inherit' : 'text.secondary',
+                    }}
+                  >
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.text}
+                    primaryTypographyProps={{
+                      variant: 'body2',
                       fontWeight: location.pathname === item.path ? 600 : 400,
                     }}
                   />

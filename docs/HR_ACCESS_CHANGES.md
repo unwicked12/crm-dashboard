@@ -50,7 +50,7 @@ All these functions are organized into tabs within the HR Dashboard, providing a
 ## User Access
 
 - **Regular Users**: Have access to the standard dashboard, schedule, knowledge base, etc.
-- **HR Users**: Have all the access of regular users, plus access to the HR Dashboard. HR users do not have access to the Manager Dashboard.
-- **Admin Users**: Have all the access of HR users, plus access to admin-specific features
+- **HR Users**: Have all the access of regular users, plus access to the HR Dashboard. HR users do not have access to the Manager Dashboard and will not see it in the sidebar navigation.
+- **Admin Users**: Have all the access of HR users, plus access to admin-specific features and the Manager Dashboard.
 
 This hierarchical access structure ensures that users have the appropriate level of access based on their role in the organization. 
