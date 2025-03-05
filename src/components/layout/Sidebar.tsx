@@ -64,9 +64,6 @@ const navItems: NavItem[] = [
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const hrItems: NavItem[] = [
   { text: 'HR Dashboard', icon: <HRIcon />, path: '/hr', hrOnly: true },
-  { text: 'Employee Management', icon: <PeopleIcon />, path: '/hr/employees', hrOnly: true },
-  { text: 'Leave Management', icon: <EventBusyIcon />, path: '/hr/leave', hrOnly: true },
-  { text: 'Performance Reviews', icon: <AssessmentIcon />, path: '/hr/performance', hrOnly: true },
 ];
 
 // Manager items

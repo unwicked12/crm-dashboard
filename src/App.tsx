@@ -19,9 +19,6 @@ import RequestManagement from './components/admin/RequestManagement';
 import UserManagement from './components/admin/UserManagement';
 import UserTierManagement from './components/admin/UserTierManagement';
 import HRDashboard from './components/hr/HRDashboard';
-import EmployeeManagement from './components/hr/EmployeeManagement';
-import LeaveManagement from './components/hr/LeaveManagement'; 
-import PerformanceReviews from './components/hr/PerformanceReviews';
 import ManagerDashboard from './components/manager/ManagerDashboard';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import AdminRoute from './components/routes/AdminRoute';
@@ -93,30 +90,6 @@ function App() {
                   element={
                     <HRRoute>
                       <HRDashboard />
-                    </HRRoute>
-                  }
-                />
-                <Route
-                  path="hr/employees"
-                  element={
-                    <HRRoute>
-                      <EmployeeManagement />
-                    </HRRoute>
-                  }
-                />
-                <Route
-                  path="hr/leave"
-                  element={
-                    <HRRoute>
-                      <LeaveManagement />
-                    </HRRoute>
-                  }
-                />
-                <Route
-                  path="hr/performance"
-                  element={
-                    <HRRoute>
-                      <PerformanceReviews />
                     </HRRoute>
                   }
                 />
