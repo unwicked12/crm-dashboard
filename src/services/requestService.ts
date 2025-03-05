@@ -98,15 +98,6 @@ export const requestService = {
       
       const now = new Date();
       
-      // Debug logs
-      console.log('Creating request with data:', JSON.stringify(request, (key, value) => {
-        if (value instanceof Date) {
-          return value.toISOString();
-        }
-        return value;
-      }, 2));
-      
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
       const newRequest: Request = {
         ...request,
         userId: request.userId || user.uid,
@@ -117,14 +108,6 @@ export const requestService = {
         createdAt: now,
         updatedAt: now,
       } as Request;
-      
-      // Debug logs
-      console.log('Processed request data:', JSON.stringify(newRequest, (key, value) => {
-        if (value instanceof Date) {
-          return value.toISOString();
-        }
-        return value;
-      }, 2));
       
       const docRef = await addDoc(requestsRef, newRequest);
       return {
@@ -140,7 +123,7 @@ export const requestService = {
   // Get requests for a user
   getUserRequests: async (userId: string): Promise<Request[]> => {
     try {
-      console.log('Getting requests for user:', userId);
+      // Removed console.log
       const requestsRef = collection(db, COLLECTION_NAME).withConverter(requestConverter);
       
       // Query for both userId and agentId
@@ -175,7 +158,7 @@ export const requestService = {
       });
       
       const combinedRequests = Array.from(requests.values());
-      console.log('Retrieved requests:', combinedRequests);
+      // Removed console.log
       
       return combinedRequests;
     } catch (error) {

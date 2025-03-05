@@ -90,7 +90,7 @@ const AdminDashboard: React.FC = () => {
     
     // Subscribe to real-time stats updates
     const unsubscribe = dashboardService.subscribeToStats((newStats) => {
-      console.log('Received new stats:', newStats); // Debug log
+      // Removed console.log // Debug log
       setStats(newStats);
       setLoading(false);
     });
@@ -104,7 +104,7 @@ const AdminDashboard: React.FC = () => {
     setLoading(true);
     try {
       const freshStats = await dashboardService.getStats();
-      console.log('Refreshed stats:', freshStats); // Debug log
+      // Removed console.log // Debug log
       setStats(freshStats);
     } catch (error) {
       console.error('Error refreshing stats:', error);

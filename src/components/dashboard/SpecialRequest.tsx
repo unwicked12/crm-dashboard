@@ -15,6 +15,8 @@ import {
   DialogContentText,
   useTheme,
   alpha,
+  Alert,
+  Snackbar,
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -25,9 +27,10 @@ import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { requestService, Request } from '../../services/requestService';
 
-interface SpecialRequest extends Request {
+// Type for special requests
+type SpecialRequestType = Request & {
   type: 'special';
-}
+};
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 const SpecialRequest: React.FC = () => {
@@ -36,33 +39,18 @@ const SpecialRequest: React.FC = () => {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [reason, setReason] = useState('');
-  const [requests, setRequests] = useState<SpecialRequest[]>([]);
+  const [requests, setRequests] = useState<SpecialRequestType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<string | null>(null);
-
-  // Fetch requests on component mount
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    fetchRequests(user.id);
-    const refreshInterval = setInterval(() => fetchRequests(user.id), 30000);
-    return () => clearInterval(refreshInterval);
-  }, [user?.id]);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const fetchRequests = async (userId: string) => {
     try {
       setLoading(true);
-      const allRequests = await requestService.getUserRequests(userId);
-      const specialRequests = allRequests
-        .filter(req => req.type === 'special')
-        .sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return dateB - dateA; // Sort by creation date, newest first
-        }) as SpecialRequest[];
-      
+      const data = await requestService.getUserRequests(userId);
+      const specialRequests = data.filter((req) => req.type === 'special') as SpecialRequestType[];
       setRequests(specialRequests);
     } catch (error: any) {
       console.error('Error fetching special requests:', error);
@@ -72,10 +60,22 @@ const SpecialRequest: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (user?.id) {
+      fetchRequests(user.id);
+    }
+  }, [user]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !reason || !user?.id) {
-      setError('Please fill in all required fields');
+    
+    if (!startDate) {
+      setError('Start date is required');
+      return;
+    }
+    
+    if (!reason) {
+      setError('Reason is required');
       return;
     }
 
@@ -83,30 +83,26 @@ const SpecialRequest: React.FC = () => {
     setError(null);
     
     try {
-      // Debug log
-      console.log('Submitting special request with dates:', {
-        startDate: startDate?.toISOString(),
-        endDate: endDate?.toISOString() || startDate?.toISOString()
-      });
-      
+      // Create the special request
       await requestService.createRequest({
         type: 'special',
         startDate,
         endDate: endDate || startDate, // For special requests, end date is optional
         reason,
-        userId: user.id,
-        // Ensure date field is set to avoid undefined error
-        date: startDate
+        status: 'pending'
       });
-
-      // Refresh the requests list
-      await fetchRequests(user.id);
-
+      
       // Reset form
       setStartDate(null);
       setEndDate(null);
       setReason('');
       setError(null);
+      setSuccessMessage('Special request submitted successfully');
+      
+      // Refresh requests
+      if (user?.id) {
+        await fetchRequests(user.id);
+      }
     } catch (error: any) {
       console.error('Error submitting special request:', error);
       setError(error.message || 'Failed to submit request');
@@ -139,6 +135,19 @@ const SpecialRequest: React.FC = () => {
 
   return (
     <Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Snackbar
+        open={!!successMessage}
+        autoHideDuration={6000}
+        onClose={() => setSuccessMessage(null)}
+        message={successMessage}
+      />
+
       <Card sx={{ mb: 2, p: 2 }}>
         <form onSubmit={handleSubmit}>
           <Stack spacing={2}>
@@ -146,7 +155,7 @@ const SpecialRequest: React.FC = () => {
             
             <Stack direction="row" spacing={2}>
               <DatePicker
-                label="Date"
+                label="Start Date"
                 value={startDate}
                 onChange={(newValue) => setStartDate(newValue)}
                 disabled={loading}
@@ -162,7 +171,7 @@ const SpecialRequest: React.FC = () => {
             </Stack>
 
             <TextField
-              label="Request Details"
+              label="Reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               multiline
@@ -171,17 +180,10 @@ const SpecialRequest: React.FC = () => {
               disabled={loading}
             />
 
-            {error && (
-              <Typography color="error" variant="body2">
-                {error}
-              </Typography>
-            )}
-
             <Button
               type="submit"
               variant="contained"
               disabled={loading}
-              startIcon={<EventIcon />}
               size="small"
             >
               {loading ? 'Submitting...' : 'Submit Request'}
@@ -191,82 +193,25 @@ const SpecialRequest: React.FC = () => {
       </Card>
 
       {requests.length > 0 && (
-        <>
-          <Typography variant="subtitle1" fontWeight="medium" sx={{ mb: 1 }}>
-            Previous Requests
-            <Chip 
-              label={requests.length} 
-              size="small" 
-              sx={{ ml: 1, height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
-            />
+        <Box sx={{ mt: 3 }}>
+          <Typography variant="subtitle1" fontWeight="medium" sx={{ mb: 2 }}>
+            Your Special Requests
           </Typography>
-          
-          <Box sx={{ 
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 1,
-            overflow: 'hidden'
-          }}>
+          <Stack spacing={2}>
             {requests.map((request) => (
-              <Box
-                key={request.id}
-                sx={{
-                  p: 1,
-                  borderBottom: '1px solid',
-                  borderColor: 'divider',
-                  '&:last-child': {
-                    borderBottom: 'none'
-                  },
-                  backgroundColor: 
-                    request.status === 'approved' 
-                      ? alpha(theme.palette.success.main, 0.05)
-                      : request.status === 'rejected'
-                      ? alpha(theme.palette.error.main, 0.05)
-                      : alpha(theme.palette.warning.main, 0.05),
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <EventIcon color="action" fontSize="small" sx={{ mr: 1 }} />
-                  <Box>
-                    <Typography variant="body2" fontWeight="medium">
-                      {request.startDate && format(new Date(request.startDate), 'MMM d')}
-                      {request.startDate && request.endDate && request.endDate !== request.startDate && 
-                        ` - ${format(new Date(request.endDate), 'MMM d')}`}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                      {request.reason.substring(0, 30)}
-                      {request.reason.length > 30 ? '...' : ''}
-                    </Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Chip
-                    label={request.status}
-                    color={
-                      request.status === 'approved'
-                        ? 'success'
-                        : request.status === 'rejected'
-                        ? 'error'
-                        : 'warning'
-                    }
-                    size="small"
-                    sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: '0.7rem' } }}
-                  />
-                  <IconButton
-                    size="small"
-                    onClick={() => request.id && handleDeleteClick(request.id)}
-                    sx={{ ml: 0.5 }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              </Box>
+              <Card key={request.id} sx={{ p: 2 }}>
+                <Typography variant="subtitle2">{request.reason}</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Status: {request.status}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Dates: {request.startDate?.toLocaleDateString()} 
+                  {request.endDate && ` - ${request.endDate.toLocaleDateString()}`}
+                </Typography>
+              </Card>
             ))}
-          </Box>
-        </>
+          </Stack>
+        </Box>
       )}
 
       {/* Delete Confirmation Dialog */}

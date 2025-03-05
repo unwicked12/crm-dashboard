@@ -11,7 +11,7 @@ async function setUserAsAdmin() {
       name: 'Admin User',
       updatedAt: new Date()
     }, { merge: true });
-    console.log('Successfully set user as admin');
+    // Removed console.log
   } catch (error) {
     console.error('Error setting user as admin:', error);
   }

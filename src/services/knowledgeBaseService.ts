@@ -44,7 +44,7 @@ const COLLECTION_NAME = 'knowledgeBase';
 // Create a type-safe converter
 const articleConverter = {
   toFirestore(article: KnowledgeBaseArticle) {
-    console.log('[KnowledgeBase] Converting article to Firestore format:', article);
+    // Removed console.log
     const { id, ...data } = article;
     return {
       title: data.title,
@@ -84,7 +84,7 @@ const articleConverter = {
 };
 
 const ensureAuth = () => {
-  console.log('[KnowledgeBase] Checking authentication...');
+  // Removed console.log
   const auth = getAuth();
   if (!auth.currentUser) {
     console.error('[KnowledgeBase] User not authenticated');
@@ -94,26 +94,26 @@ const ensureAuth = () => {
 };
 
 const getUserRole = async (userId: string) => {
-  console.log('[KnowledgeBase] Getting user role for:', userId);
+  // Removed console.log
   const userDoc = await getDoc(doc(db, 'users', userId));
   if (!userDoc.exists()) {
     console.error('[KnowledgeBase] User document not found');
     throw new Error('User not found');
   }
   const userData = userDoc.data();
-  console.log('[KnowledgeBase] User data:', userData);
+  // Removed console.log
   return userData.role;
 };
 
 const getUserFullName = async (userId: string) => {
-  console.log('[KnowledgeBase] Getting user full name for:', userId);
+  // Removed console.log
   const userDoc = await getDoc(doc(db, 'users', userId));
   if (!userDoc.exists()) {
     console.error('[KnowledgeBase] User document not found');
     throw new Error('User not found');
   }
   const userData = userDoc.data();
-  console.log('[KnowledgeBase] User data:', userData);
+  // Removed console.log
   return userData.name || 'Unknown User';
 };
 
@@ -121,30 +121,30 @@ export const knowledgeBaseService = {
   // Get all articles
   getAllArticles: async (): Promise<KnowledgeBaseArticle[]> => {
     try {
-      console.log('[KnowledgeBase] Starting to fetch all articles...');
+      // Removed console.log
       const user = ensureAuth();
-      console.log('[KnowledgeBase] User authenticated:', user.uid);
+      // Removed console.log
 
       // Get user role
       const userRole = await getUserRole(user.uid);
-      console.log('[KnowledgeBase] User role:', userRole);
+      // Removed console.log
 
       const articlesRef = collection(db, COLLECTION_NAME).withConverter(articleConverter);
-      console.log('[KnowledgeBase] Created articles reference');
+      // Removed console.log
       
       // Build query to get all articles for all users, regardless of role
       const q = query(articlesRef, orderBy('createdAt', 'desc'));
-      console.log('[KnowledgeBase] Created query to get all articles');
+      // Removed console.log
       
       const querySnapshot = await getDocs(q);
-      console.log('[KnowledgeBase] Got query snapshot, size:', querySnapshot.size);
+      // Removed console.log
       
       const articles = querySnapshot.docs.map((doc: any) => {
         const article = articleConverter.fromFirestore(doc);
         return article;
       });
       
-      console.log('[KnowledgeBase] Returning all articles, count:', articles.length);
+      // Removed console.log
       return articles;
     } catch (error) {
       console.error('[KnowledgeBase] Error getting articles:', error);
@@ -213,10 +213,10 @@ export const knowledgeBaseService = {
       if (!user) throw new Error('User must be authenticated');
 
       const userRole = await getUserRole(user.uid);
-      console.log('[KnowledgeBase] User role:', userRole);
+      // Removed console.log
 
       const authorName = await getUserFullName(user.uid);
-      console.log('[KnowledgeBase] Author name:', authorName);
+      // Removed console.log
 
       // Validate category
       if (!VALID_CATEGORIES.includes(article.category as ArticleCategory)) {
@@ -239,17 +239,17 @@ export const knowledgeBaseService = {
         approvalStatus: 'pending'
       };
 
-      console.log('[KnowledgeBase] Creating article with data:', articleData);
+      // Removed console.log
       const articlesRef = collection(db, COLLECTION_NAME).withConverter(articleConverter);
       const docRef = await addDoc(articlesRef, articleData);
       
-      console.log('[KnowledgeBase] Article created successfully with ID:', docRef.id);
+      // Removed console.log
       
       // If the user is not an admin, notify admins about the new article
       if (userRole !== 'admin') {
         try {
           await notificationService.notifyAdminsOfNewArticle(docRef.id, articleData.title);
-          console.log('[KnowledgeBase] Admins notified about new article');
+          // Removed console.log
         } catch (notificationError) {
           console.error('[KnowledgeBase] Error notifying admins:', notificationError);
           // Don't throw the error here, as the article was created successfully
@@ -316,9 +316,9 @@ export const knowledgeBaseService = {
   // Delete article
   deleteArticle: async (id: string): Promise<void> => {
     try {
-      console.log('[KnowledgeBase] Starting article deletion for ID:', id);
+      // Removed console.log
       const user = ensureAuth();
-      console.log('[KnowledgeBase] User authenticated:', user.uid);
+      // Removed console.log
 
       const articleRef = doc(db, COLLECTION_NAME, id).withConverter(articleConverter);
       const articleDoc = await getDoc(articleRef);
@@ -329,11 +329,11 @@ export const knowledgeBaseService = {
       }
 
       const article = articleConverter.fromFirestore(articleDoc);
-      console.log('[KnowledgeBase] Found article:', article);
+      // Removed console.log
 
       // Get user role from Firestore
       const userRole = await getUserRole(user.uid);
-      console.log('[KnowledgeBase] User role:', userRole);
+      // Removed console.log
 
       // Only allow deletion if user is admin or the original author
       if (userRole !== 'admin' && article.authorId !== user.uid) {
@@ -341,9 +341,9 @@ export const knowledgeBaseService = {
         throw new Error('You do not have permission to delete this article');
       }
 
-      console.log('[KnowledgeBase] Deleting article with ID:', id);
+      // Removed console.log
       await deleteDoc(articleRef);
-      console.log('[KnowledgeBase] Article successfully deleted');
+      // Removed console.log
     } catch (error) {
       console.error('[KnowledgeBase] Error deleting article:', error);
       throw error;
@@ -390,7 +390,7 @@ export const knowledgeBaseService = {
           status,
           message
         );
-        console.log(`[KnowledgeBase] Author notified about ${status} status`);
+        // Removed console.log
       } catch (notificationError) {
         console.error('[KnowledgeBase] Error notifying author:', notificationError);
         // Don't throw the error here, as the status was updated successfully
@@ -453,14 +453,14 @@ export const knowledgeBaseService = {
 
   async getArticleById(id: string): Promise<KnowledgeBaseArticle | null> {
     try {
-      console.log('[KnowledgeBase] Getting article by ID:', id);
+      // Removed console.log
       ensureAuth();
       
       const docRef = doc(db, COLLECTION_NAME, id).withConverter(articleConverter);
       const docSnap = await getDoc(docRef);
       
       if (!docSnap.exists()) {
-        console.log('[KnowledgeBase] Article not found');
+        // Removed console.log
         return null;
       }
       

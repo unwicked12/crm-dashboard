@@ -122,14 +122,14 @@ export const seedKnowledgeBase = async () => {
   let userCredential;
   
   try {
-    console.log('Starting knowledge base seeding process...');
+    // Removed console.log
     
     // Initialize Firebase
     try {
-      console.log('Initializing Firebase...');
+      // Removed console.log
       const app = initializeApp(firebaseConfig);
       auth = getAuth(app);
-      console.log('Firebase initialized successfully');
+      // Removed console.log
     } catch (error) {
       console.error('Failed to initialize Firebase:', error);
       throw new Error('Firebase initialization failed');
@@ -137,9 +137,9 @@ export const seedKnowledgeBase = async () => {
     
     // Sign in as admin
     try {
-      console.log('Attempting to sign in as admin...');
+      // Removed console.log
       userCredential = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
-      console.log('Successfully signed in as admin');
+      // Removed console.log
     } catch (error) {
       console.error('Failed to sign in as admin:', error);
       throw new Error('Admin sign in failed');
@@ -147,7 +147,7 @@ export const seedKnowledgeBase = async () => {
 
     // Verify admin role
     try {
-      console.log('Verifying admin role...');
+      // Removed console.log
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       if (!userDoc.exists()) {
         throw new Error('Admin user document not found');
@@ -156,19 +156,19 @@ export const seedKnowledgeBase = async () => {
       if (userData.role !== 'admin') {
         throw new Error('User is not an admin');
       }
-      console.log('Admin role verified successfully');
+      // Removed console.log
     } catch (error) {
       console.error('Failed to verify admin role:', error);
       throw new Error('Admin role verification failed');
     }
     
-    console.log('Starting to create articles...');
+    // Removed console.log
     let successCount = 0;
     let errorCount = 0;
     
     for (const article of articles) {
       try {
-        console.log(`Creating article: ${article.title}`);
+        // Removed console.log
         const createdArticle = await knowledgeBaseService.createArticle({
           title: article.title,
           content: article.content,
@@ -179,7 +179,7 @@ export const seedKnowledgeBase = async () => {
           images: [],
           summary: article.content.substring(0, 150) + '...'
         });
-        console.log(`Successfully created article: ${createdArticle.id}`);
+        // Removed console.log
         successCount++;
       } catch (error) {
         console.error(`Error creating article ${article.title}:`, error);
@@ -187,7 +187,7 @@ export const seedKnowledgeBase = async () => {
       }
     }
     
-    console.log(`Knowledge base seeding completed. Success: ${successCount}, Errors: ${errorCount}`);
+    // Removed console.log
     return { successCount, errorCount };
   } catch (error) {
     console.error('Error in seedKnowledgeBase:', error);
@@ -199,7 +199,7 @@ export const seedKnowledgeBase = async () => {
 if (import.meta.url === fileURLToPath(process.argv[1])) {
   seedKnowledgeBase()
     .then(({ successCount, errorCount }) => {
-      console.log(`Seeding completed. Successfully created ${successCount} articles with ${errorCount} errors.`);
+      // Removed console.log
       process.exit(errorCount > 0 ? 1 : 0);
     })
     .catch((error) => {

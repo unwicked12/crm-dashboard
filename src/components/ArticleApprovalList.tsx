@@ -120,7 +120,7 @@ const ArticleApprovalList: React.FC = () => {
         updatedAt: new Date().toISOString()
       });
       
-      console.log(`Article ${articleId} ${status} successfully`);
+      // Removed console.log
     } catch (error) {
       console.error(`Error updating article status to ${status}:`, error);
       throw error;

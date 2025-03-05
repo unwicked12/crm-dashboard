@@ -42,11 +42,11 @@ const testArticle = {
 // Function to create a test article
 const createTestArticle = async () => {
   try {
-    console.log('Signing in as admin...');
+    // Removed console.log
     const userCredential = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
     const user = userCredential.user;
     
-    console.log('Successfully signed in as admin:', user.uid);
+    // Removed console.log
     
     // Set the author ID to the admin's UID
     testArticle.authorId = user.uid;
@@ -58,14 +58,14 @@ const createTestArticle = async () => {
       updatedAt: Timestamp.fromDate(testArticle.updatedAt)
     };
     
-    console.log('Creating test article...');
+    // Removed console.log
     const docRef = await addDoc(collection(db, 'knowledgeBase'), firestoreArticle);
     
-    console.log('Test article created successfully with ID:', docRef.id);
+    // Removed console.log
     
     // Sign out
     await auth.signOut();
-    console.log('Signed out successfully');
+    // Removed console.log
     
     return docRef.id;
   } catch (error) {
@@ -77,7 +77,7 @@ const createTestArticle = async () => {
 // Execute the function
 createTestArticle()
   .then(() => {
-    console.log('Test article creation completed');
+    // Removed console.log
     process.exit(0);
   })
   .catch((error) => {

@@ -66,21 +66,21 @@ const RequestManagement: React.FC = () => {
 
   const fetchUserInfo = async (userId: string): Promise<UserInfo | undefined> => {
     try {
-      console.log('Fetching user info for ID:', userId);
+      // Removed console.log
       const userDoc = await getDoc(doc(db, 'users', userId));
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        console.log('User data from Firestore:', userData);
+        // Removed console.log
         // Get the user's full name from Firestore
         const fullName = userData.displayName || userData.name || userData.email;
-        console.log('Using name:', fullName);
+        // Removed console.log
         return {
           name: fullName,
           email: userData.email
         };
       }
       // If no user document exists, return undefined
-      console.log('No user document found for ID:', userId);
+      // Removed console.log
       return undefined;
     } catch (error) {
       console.error('Error fetching user info:', error);
@@ -106,7 +106,7 @@ const RequestManagement: React.FC = () => {
   const fetchRequests = async () => {
     try {
       const data = await requestService.getAllRequests();
-      console.log('Fetched requests:', data);
+      // Removed console.log
       const enrichedData = await enrichRequestsWithUserInfo(data);
       setRequests(enrichedData);
     } catch (error) {

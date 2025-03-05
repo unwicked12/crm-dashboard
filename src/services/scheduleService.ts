@@ -94,7 +94,7 @@ export const scheduleService = {
     });
 
     const users = Array.from(userMap.values());
-    console.log('Fetched unique users:', users);
+    // Removed console.log
     return users;
   },
 

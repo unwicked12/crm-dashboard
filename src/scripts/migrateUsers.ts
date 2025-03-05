@@ -29,7 +29,7 @@ const getTierCapabilities = (tier: string = 'tier1') => ({
 
 export const migrateUsers = async () => {
   try {
-    console.log('Starting user migration...');
+    // Removed console.log
     const usersRef = collection(db, 'users');
     const snapshot = await getDocs(usersRef);
     const auth = getAuth();
@@ -45,7 +45,7 @@ export const migrateUsers = async () => {
         
         // Skip if user is already properly structured
         if (userData.id && userData.uid && userData.status && userData.capabilities) {
-          console.log(`User ${docId} already properly structured, skipping...`);
+          // Removed console.log
           continue;
         }
 
@@ -60,7 +60,7 @@ export const migrateUsers = async () => {
 
         // Update the document
         await updateDoc(doc(db, 'users', docId), updatedData);
-        console.log(`Successfully migrated user ${docId}`);
+        // Removed console.log
         migratedCount++;
       } catch (error: any) {
         console.error(`Error migrating user ${userDoc.id}:`, error);
@@ -69,15 +69,15 @@ export const migrateUsers = async () => {
       }
     }
 
-    console.log('\nMigration Summary:');
-    console.log(`Total users processed: ${snapshot.docs.length}`);
-    console.log(`Successfully migrated: ${migratedCount}`);
-    console.log(`Errors encountered: ${errorCount}`);
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
     
     if (errors.length > 0) {
-      console.log('\nErrors:');
+      // Removed console.log
       errors.forEach(({ id, error }) => {
-        console.log(`- User ${id}: ${error}`);
+        // Removed console.log
       });
     }
 

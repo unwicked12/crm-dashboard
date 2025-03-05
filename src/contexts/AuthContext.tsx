@@ -33,22 +33,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const auth = getAuth();
 
   useEffect(() => {
-    console.log('[AuthContext] Setting up auth state listener');
+    // Removed console.log
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseAuthUser | null) => {
       try {
-        console.log('[AuthContext] Auth state changed:', firebaseUser?.uid);
+        // Removed console.log
         if (firebaseUser) {
-          console.log('[AuthContext] Fetching user data from Firestore');
+          // Removed console.log
           const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
           
           if (userDoc.exists()) {
-            console.log('[AuthContext] User document found:', userDoc.data());
+            // Removed console.log);
             const userData = userDoc.data() as Omit<User, 'id'>;
             const userWithId = {
               id: userDoc.id,
               ...userData
             };
-            console.log('[AuthContext] Setting user state:', userWithId);
+            // Removed console.log
             setUser(userWithId);
           } else {
             console.warn('[AuthContext] No Firestore document found for user');
@@ -56,29 +56,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
           }
         } else {
-          console.log('[AuthContext] No Firebase user, clearing state');
+          // Removed console.log
           setUser(null);
         }
       } catch (error) {
         console.error('[AuthContext] Error processing auth state change:', error);
         setUser(null);
       } finally {
-        console.log('[AuthContext] Setting loading to false');
+        // Removed console.log
         setLoading(false);
       }
     });
 
     return () => {
-      console.log('[AuthContext] Cleaning up auth state listener');
+      // Removed console.log
       unsubscribe();
     };
   }, [auth]);
 
   const login = async (email: string, password: string): Promise<User> => {
     try {
-      console.log('[AuthContext] Attempting login for:', email);
+      // Removed console.log
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('[AuthContext] Firebase Auth successful, fetching user data');
+      // Removed console.log
       
       const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
       
@@ -93,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ...userData
       };
       
-      console.log('[AuthContext] Login successful, user data:', user);
+      // Removed console.log
       setUser(user);
       return user;
     } catch (error: any) {
@@ -110,10 +110,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = async () => {
     try {
-      console.log('[AuthContext] Signing out');
+      // Removed console.log
       await firebaseSignOut(auth);
       setUser(null);
-      console.log('[AuthContext] Sign out successful');
+      // Removed console.log
     } catch (error) {
       console.error('[AuthContext] Sign out error:', error);
       throw new Error('Failed to sign out');

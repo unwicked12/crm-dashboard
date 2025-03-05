@@ -217,6 +217,10 @@ const HRDashboard: React.FC = () => {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('');
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedYearFilter, setSelectedYearFilter] = useState<string>('');
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedHolidayBalance, setSelectedHolidayBalance] = useState<AgentHolidayBalance | null>(null);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [holidayBalanceDialogOpen, setHolidayBalanceDialogOpen] = useState(false);
 
 // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -242,7 +246,7 @@ const HRDashboard: React.FC = () => {
       const documents: SignedDocument[] = [];
       querySnapshot.forEach((doc: FirestoreDoc) => {
         const data = doc.data();
-        console.log('Processing document:', { id: doc.id, ...data });
+        // Removed console.log
         
         documents.push({
           id: doc.id,
@@ -529,6 +533,81 @@ const HRDashboard: React.FC = () => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const availableYears = Array.from(new Set(signedDocuments.map(doc => doc.year))).sort().reverse();
 
+  const handleEditHolidayBalance = (holidayBalance: AgentHolidayBalance) => {
+    setSelectedHolidayBalance(holidayBalance);
+    setHolidayBalanceDialogOpen(true);
+  };
+
+  const handleDeleteHolidayBalance = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this holiday balance record?')) {
+      try {
+        setLoading(true);
+        const balanceRef = doc(db, 'holidayBalances', id);
+        await deleteDoc(balanceRef);
+        setHolidayBalances(holidayBalances.filter(balance => balance.id !== id));
+        setLoading(false);
+      } catch (error) {
+        setError('Failed to delete holiday balance record');
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleSaveHolidayBalance = async () => {
+    if (!selectedHolidayBalance) return;
+    
+    try {
+      setLoading(true);
+      const balanceRef = doc(db, 'holidayBalances', selectedHolidayBalance.id);
+      await updateDoc(balanceRef, {
+        totalDays: selectedHolidayBalance.totalDays,
+        usedDays: selectedHolidayBalance.usedDays,
+        remainingDays: selectedHolidayBalance.remainingDays,
+        updatedAt: Timestamp.now()
+      });
+      
+      setHolidayBalances(holidayBalances.map(balance => 
+        balance.id === selectedHolidayBalance.id ? selectedHolidayBalance : balance
+      ));
+      
+      setHolidayBalanceDialogOpen(false);
+      setSelectedHolidayBalance(null);
+      setLoading(false);
+    } catch (error) {
+      setError('Failed to update holiday balance record');
+      setLoading(false);
+    }
+  };
+
+  const handleEditContract = (contract: Contract) => {
+    // Set contract form data for editing
+    setContractFormData({
+      agentId: contract.agentId,
+      contractType: contract.contractType,
+      startDate: format(contract.startDate, 'yyyy-MM-dd'),
+      endDate: contract.endDate ? format(contract.endDate, 'yyyy-MM-dd') : undefined,
+      salary: contract.salary,
+      position: contract.position,
+      department: contract.department,
+    });
+    setContractDialogOpen(true);
+  };
+
+  const handleDeleteContract = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this contract?')) {
+      try {
+        setLoading(true);
+        const contractRef = doc(db, 'contracts', id);
+        await deleteDoc(contractRef);
+        setContracts(contracts.filter(contract => contract.id !== id));
+        setLoading(false);
+      } catch (error) {
+        setError('Failed to delete contract');
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <Box sx={{ width: '100%' }}>
       <Paper elevation={3}>
@@ -793,14 +872,14 @@ const HRDashboard: React.FC = () => {
                   <Stack direction="row" spacing={1}>
                     <IconButton
                       size="small"
-                      onClick={() => {/* TODO: Add edit functionality */}}
+                      onClick={() => handleEditContract(params.row)}
                     >
                       <EditIcon />
                     </IconButton>
                     <IconButton
                       size="small"
                       color="error"
-                      onClick={() => {/* TODO: Add delete functionality */}}
+                      onClick={() => handleDeleteContract(params.row.id)}
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -1063,6 +1142,59 @@ const HRDashboard: React.FC = () => {
             disabled={!contractFormData.agentId || !contractFormData.startDate || !contractFormData.position || !contractFormData.department || !contractFormData.salary}
           >
             Ajouter
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Holiday Balance Edit Dialog */}
+      <Dialog open={holidayBalanceDialogOpen} onClose={() => setHolidayBalanceDialogOpen(false)}>
+        <DialogTitle>Edit Holiday Balance</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  label="Total Days"
+                  type="number"
+                  fullWidth
+                  value={selectedHolidayBalance?.totalDays || 0}
+                  onChange={(e) => setSelectedHolidayBalance(prev => 
+                    prev ? {...prev, totalDays: Number(e.target.value)} : null
+                  )}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Used Days"
+                  type="number"
+                  fullWidth
+                  value={selectedHolidayBalance?.usedDays || 0}
+                  onChange={(e) => {
+                    const usedDays = Number(e.target.value);
+                    setSelectedHolidayBalance(prev => {
+                      if (!prev) return null;
+                      const remainingDays = prev.totalDays - usedDays;
+                      return {...prev, usedDays, remainingDays};
+                    });
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <TextField
+                  label="Remaining Days"
+                  type="number"
+                  fullWidth
+                  disabled
+                  value={selectedHolidayBalance?.remainingDays || 0}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHolidayBalanceDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleSaveHolidayBalance} variant="contained" color="primary">
+            Save
           </Button>
         </DialogActions>
       </Dialog>

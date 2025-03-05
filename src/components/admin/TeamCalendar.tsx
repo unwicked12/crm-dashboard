@@ -179,25 +179,25 @@ const TeamCalendar: React.FC = () => {
 
   const handleAutoSchedule = async () => {
     try {
-      console.log('Starting auto-schedule...');
+      // Removed console.log
       setAutoScheduleLoading(true);
       const monthStart = startOfMonth(currentDate);
       const monthEnd = endOfMonth(currentDate);
 
       // Clear existing schedules first
-      console.log('Clearing existing schedules...');
+      // Removed console.log
       await scheduleService.clearAllSchedules();
 
       // Generate optimal schedules
-      console.log('Generating new schedules...');
+      // Removed console.log
       const newSchedules = await scheduleService.generateSchedule(
         monthStart,
         monthEnd
       );
-      console.log('Generated schedules:', newSchedules);
+      // Removed console.log
 
       // Create all new schedules
-      console.log('Creating new schedules...');
+      // Removed console.log
       for (const schedule of newSchedules) {
         await userService.createSchedule({
           userId: schedule.userId,
@@ -209,15 +209,15 @@ const TeamCalendar: React.FC = () => {
       }
 
       // Refresh schedules
-      console.log('Refreshing schedule display...');
+      // Removed console.log
       const fetchedSchedules = await userService.getSchedules(monthStart, monthEnd);
-      console.log('Fetched schedules:', fetchedSchedules);
+      // Removed console.log
       const extendedSchedules: ExtendedSchedule[] = fetchedSchedules.map(schedule => ({
         ...schedule,
         status: schedule.status || 'pending'
       }));
       setSchedules(extendedSchedules);
-      console.log('Auto-schedule complete!');
+      // Removed console.log
     } catch (error) {
       console.error('Error auto-scheduling:', error);
     } finally {

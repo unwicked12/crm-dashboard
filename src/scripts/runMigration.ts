@@ -2,20 +2,20 @@ import { migrateUsers } from './migrateUsers.js';
 
 const runMigration = async () => {
   try {
-    console.log('Starting user migration process...');
+    // Removed console.log
     const result = await migrateUsers();
     
-    console.log('\nMigration completed successfully!');
-    console.log('----------------------------------------');
-    console.log('Summary:');
-    console.log(`Total users: ${result.total}`);
-    console.log(`Successfully migrated: ${result.migrated}`);
-    console.log(`Errors: ${result.errors}`);
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
+    // Removed console.log
     
     if (result.errorDetails.length > 0) {
-      console.log('\nError Details:');
+      // Removed console.log
       result.errorDetails.forEach(({ id, error }) => {
-        console.log(`- User ${id}: ${error}`);
+        // Removed console.log
       });
     }
   } catch (error) {

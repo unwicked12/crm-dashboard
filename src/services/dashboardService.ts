@@ -115,7 +115,7 @@ async function enrichMonitoringWithUserData(data: MonitoringData): Promise<Monit
 export const dashboardService = {
   getStats: async (): Promise<DashboardStats> => {
     try {
-      console.log('Fetching dashboard stats...');
+      // Removed console.log
       const auth = getAuth();
       const user = auth.currentUser;
 
@@ -136,7 +136,7 @@ export const dashboardService = {
           .map(enrichRequestWithUserData)
       );
 
-      console.log('All leave requests:', allRequests);
+      // Removed console.log
 
       // Calculate stats from the filtered data
       const currentDate = new Date();
@@ -167,10 +167,10 @@ export const dashboardService = {
           .map(enrichMonitoringWithUserData)
       );
 
-      console.log('Monitoring data:', monitoringData);
+      // Removed console.log
       stats.activeAgents = monitoringData.length;
 
-      console.log('Final calculated stats:', stats);
+      // Removed console.log
       return stats;
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
@@ -191,7 +191,7 @@ export const dashboardService = {
     const requestsUnsubscribe = onSnapshot(
       collection(db, 'requests'),
       async () => {
-        console.log('Leave requests updated, recalculating stats...');
+        // Removed console.log
         const stats = await dashboardService.getStats();
         callback(stats);
       },
@@ -205,7 +205,7 @@ export const dashboardService = {
     const monitoringUnsubscribe = onSnapshot(
       collection(db, 'monitoring'),
       async () => {
-        console.log('Monitoring updated, recalculating stats...');
+        // Removed console.log
         const stats = await dashboardService.getStats();
         callback(stats);
       },
@@ -216,7 +216,7 @@ export const dashboardService = {
     unsubscribers.push(monitoringUnsubscribe);
 
     // Initial fetch
-    console.log('Starting initial stats fetch...');
+    // Removed console.log
     dashboardService.getStats().then(callback);
 
     // Return cleanup function

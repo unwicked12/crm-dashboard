@@ -91,14 +91,14 @@ const KnowledgeBase: React.FC = () => {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const fetchArticles = async () => {
     try {
-      console.log('[KnowledgeBase] Starting to fetch articles...');
-      console.log('[KnowledgeBase] Current user:', user);
+      // Removed console.log
+      // Removed console.log
       
       setLoading(true);
       setError(null);
       
       const data = await knowledgeBaseService.getAllArticles();
-      console.log('[KnowledgeBase] Fetched articles:', data);
+      // Removed console.log
       
       setArticles(data);
     } catch (error) {
@@ -133,16 +133,16 @@ const KnowledgeBase: React.FC = () => {
 
 // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    console.log('[KnowledgeBase] Component mounted, checking auth state...');
+    // Removed console.log
     if (user) {
-      console.log('[KnowledgeBase] User is authenticated, fetching articles...');
+      // Removed console.log
       fetchArticles();
       
       if (articleId) {
         fetchArticleById(articleId);
       }
     } else {
-      console.log('[KnowledgeBase] User is not authenticated');
+      // Removed console.log
       setError('Please sign in to view articles');
       setLoading(false);
     }

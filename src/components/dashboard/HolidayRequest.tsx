@@ -66,11 +66,11 @@ const HolidayRequest: React.FC = () => {
     try {
       setLoading(true);
       setError(null); // Clear any previous errors
-      console.log('Fetching requests for user:', userId);
+      // Removed console.log
       const data = await requestService.getUserRequests(userId);
-      console.log('Raw request data:', data);
+      // Removed console.log
       const holidayRequests = data.filter((req) => req.type === 'holiday') as HolidayRequestType[];
-      console.log('Filtered holiday requests:', holidayRequests);
+      // Removed console.log
       
       const processedRequests = holidayRequests.map(request => ({
         ...request,
@@ -79,7 +79,7 @@ const HolidayRequest: React.FC = () => {
         createdAt: request.createdAt instanceof Date ? request.createdAt : new Date(request.createdAt || Date.now())
       }));
       
-      console.log('Processed requests:', processedRequests);
+      // Removed console.log
       setRequests(processedRequests);
       setError(null);
     } catch (error: any) {
@@ -106,9 +106,9 @@ const HolidayRequest: React.FC = () => {
   };
 
   useEffect(() => {
-    console.log('HolidayRequest component mounted, user:', user);
+    // Removed console.log
     if (!user?.uid) {
-      console.log('No user ID available');
+      // Removed console.log
       return;
     }
     
@@ -126,47 +126,41 @@ const HolidayRequest: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate || !endDate || !reason || !user?.uid) {
-      setError('Please fill in all required fields');
+    
+    if (!startDate) {
+      setError('Start date is required');
       return;
     }
-
-    if (startDate > endDate) {
-      setError('End date must be after start date');
+    
+    if (!reason) {
+      setError('Reason is required');
       return;
     }
-
+    
     setLoading(true);
     setError(null);
     
     try {
-      // Debug log
-      console.log('Submitting holiday request with dates:', {
-        startDate: startDate?.toISOString(),
-        endDate: endDate?.toISOString()
-      });
-      
+      // Create the holiday request
       await requestService.createRequest({
         type: 'holiday',
         startDate,
-        endDate,
+        endDate: endDate || startDate,
         reason,
-        userId: user.uid,
-        // Ensure date field is set to avoid undefined error
-        date: startDate
+        status: 'pending'
       });
-
-      // Show success message
-      setSuccessMessage('Holiday request submitted successfully');
-
-      // Refresh the requests list
-      await fetchRequests(user.uid);
-
+      
       // Reset form
       setStartDate(null);
       setEndDate(null);
       setReason('');
       setError(null);
+      setSuccessMessage('Holiday request submitted successfully');
+      
+      // Refresh requests
+      if (user?.id) {
+        await fetchRequests(user.id);
+      }
     } catch (error: any) {
       console.error('Error submitting holiday request:', error);
       setError(error.message || 'Failed to submit holiday request');

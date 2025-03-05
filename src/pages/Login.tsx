@@ -55,11 +55,11 @@ const Login: React.FC = () => {
   useEffect(() => {
     const checkFirstUser = async () => {
       try {
-        console.log('[Login] Checking for first user');
+        // Removed console.log
         const usersRef = collection(db, 'users');
         const snapshot = await getDocs(usersRef);
         const isFirst = snapshot.empty;
-        console.log('[Login] Is first user:', isFirst);
+        // Removed console.log
         setIsFirstUser(isFirst);
       } catch (error) {
         console.error('[Login] Error checking first user:', error);

@@ -8,16 +8,16 @@ const ADMIN_PASSWORD = 'Hoplala12@@'; // Replace with actual password
 
 async function fixAdminUser() {
   try {
-    console.log('Starting admin user fix...');
+    // Removed console.log
     const auth = getAuth();
     const functions = getFunctions();
     
     // First try to sign in as admin
-    console.log('Attempting to sign in as admin...');
+    // Removed console.log
     const userCredential = await signInWithEmailAndPassword(auth, ADMIN_EMAIL, ADMIN_PASSWORD);
     const adminUid = userCredential.user.uid;
     
-    console.log('Successfully signed in, creating/updating Firestore document...');
+    // Removed console.log
     
     // Create or update the admin document in Firestore
     const adminData = {
@@ -44,7 +44,7 @@ async function fixAdminUser() {
     const setCustomClaims = httpsCallable(functions, 'setCustomClaims');
     await setCustomClaims({ uid: adminUid, claims: { role: 'admin' } });
     
-    console.log('Successfully fixed admin user permissions and custom claims');
+    // Removed console.log
   } catch (error) {
     console.error('Error fixing admin user:', error);
     throw error;

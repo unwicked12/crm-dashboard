@@ -319,7 +319,7 @@ export const userService = {
         ...(options?.isRecurring !== undefined && { isRecurring: options.isRecurring })
       });
       
-      console.log(`Updated Saturday availability for user ${userId} to ${available}`);
+      // Removed console.log
     } catch (error) {
       console.error('Error updating Saturday availability:', error);
       throw error;

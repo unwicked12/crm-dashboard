@@ -249,7 +249,7 @@ const UserManagement: React.FC = () => {
           
           if (matchedTier) {
             userTier = matchedTier;
-            console.log(`Found case-insensitive match for tier: ${rawTier} → ${matchedTier}`);
+            // Removed console.log
           } else {
             console.warn(`Invalid tier value found: ${rawTier}, defaulting to tier1`);
           }
@@ -408,7 +408,7 @@ const UserManagement: React.FC = () => {
         
         if (matchedTier) {
           userTier = matchedTier;
-          console.log(`Found case-insensitive match for tier: ${formData.tier} → ${matchedTier}`);
+          // Removed console.log
         } else {
           console.warn(`Invalid tier value found: ${userTier}, defaulting to tier1`);
           userTier = 'tier1';
@@ -493,7 +493,7 @@ const UserManagement: React.FC = () => {
         
         if (matchedTier) {
           userTier = matchedTier;
-          console.log(`Found case-insensitive match for tier: ${formData.tier} → ${matchedTier}`);
+          // Removed console.log
         } else {
           console.warn(`Invalid tier value found: ${userTier}, defaulting to tier1`);
           userTier = 'tier1';

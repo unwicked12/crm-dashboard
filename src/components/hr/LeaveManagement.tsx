@@ -91,7 +91,7 @@ const LeaveManagement: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching holiday requests');
+      // Removed console.log
       
       // Use the new optimized method for holiday requests
       let data;
@@ -101,7 +101,7 @@ const LeaveManagement: React.FC = () => {
         data = await requestService.getHolidayRequests();
       }
       
-      console.log('Holiday requests data:', data);
+      // Removed console.log
       
       // Process dates and ensure all requests are of type 'holiday'
       const processedRequests = data

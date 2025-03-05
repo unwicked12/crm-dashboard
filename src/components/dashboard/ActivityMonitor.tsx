@@ -111,7 +111,7 @@ const ActivityMonitor = (): ReactElement => {
         
         // Skip logs with undefined type
         if (!log.type) {
-          console.log("Skipping log with undefined type:", log);
+          // Removed console.log
           return;
         }
         
@@ -164,7 +164,7 @@ const ActivityMonitor = (): ReactElement => {
             
           default:
             // Log unexpected types for debugging
-            console.log(`Unhandled log type: ${log.type}`);
+            // Removed console.log
             break;
         }
       } catch (error) {

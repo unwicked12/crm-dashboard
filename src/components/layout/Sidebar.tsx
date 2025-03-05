@@ -93,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const isAdmin = user?.role === 'admin';
   const isHR = user?.role === 'hr';
 
-  console.log('Current user role:', user?.role, 'isHR:', isHR, 'isAdmin:', isAdmin); // Debug log
+  // Removed console.log // Debug log
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleLogout = () => {
