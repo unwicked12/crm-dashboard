@@ -74,10 +74,8 @@ const managerItems: NavItem[] = [
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const adminItems: NavItem[] = [
   { text: 'Admin Dashboard', icon: <AdminIcon />, path: '/admin', adminOnly: true },
-  { text: 'Request Management', icon: <ListAltIcon />, path: '/admin/requests', adminOnly: true },
   { text: 'User Management', icon: <PersonIcon />, path: '/admin/users', adminOnly: true },
   { text: 'User Tiers', icon: <LayersIcon />, path: '/admin/tiers', adminOnly: true },
-  { text: 'Article Approval', icon: <ApprovalIcon />, path: '/admin/article-approval', adminOnly: true },
 ];
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

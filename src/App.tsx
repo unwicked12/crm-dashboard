@@ -114,14 +114,6 @@ function App() {
                   }
                 />
                 <Route
-                  path="admin/requests"
-                  element={
-                    <AdminRoute>
-                      <RequestManagement />
-                    </AdminRoute>
-                  }
-                />
-                <Route
                   path="admin/users"
                   element={
                     <AdminRoute>
@@ -134,14 +126,6 @@ function App() {
                   element={
                     <AdminRoute>
                       <UserTierManagement />
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="admin/article-approval"
-                  element={
-                    <AdminRoute>
-                      <ArticleApproval />
                     </AdminRoute>
                   }
                 />

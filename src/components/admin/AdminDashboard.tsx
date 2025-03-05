@@ -16,12 +16,17 @@ import {
   AccessTime as SpecialRequestIcon,
   Refresh as RefreshIcon,
   Article as ArticleIcon,
+  Person as UserIcon,
+  Layers as TiersIcon,
 } from '@mui/icons-material';
 import RequestManagement from './RequestManagement';
 import TeamCalendar from './TeamCalendar';
 import ActivityOverview from './ActivityOverview';
 import ArticleApprovalList from '../ArticleApprovalList';
+import UserManagement from './UserManagement';
+import UserTierManagement from './UserTierManagement';
 import { dashboardService, DashboardStats } from '../../services/dashboardService';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface StatCardProps {
   title: string;
@@ -75,13 +80,24 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
 );
 
 const AdminDashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [stats, setStats] = useState<DashboardStats>({
     pendingRequests: 0,
     activeAgents: 0,
     plannedHolidays: 0,
     specialRequests: 0,
   });
-  const [activeTab, setActiveTab] = useState('requests');
+  
+  // Determine the active tab based on the URL or default to 'requests'
+  const getInitialTab = () => {
+    const path = location.pathname;
+    if (path.includes('/admin/users')) return 'users';
+    if (path.includes('/admin/tiers')) return 'tiers';
+    return 'requests';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab());
   const [loading, setLoading] = useState(true);
   const [pendingArticles, setPendingArticles] = useState(0);
 
@@ -90,7 +106,6 @@ const AdminDashboard: React.FC = () => {
     
     // Subscribe to real-time stats updates
     const unsubscribe = dashboardService.subscribeToStats((newStats) => {
-      // Removed console.log // Debug log
       setStats(newStats);
       setLoading(false);
     });
@@ -100,17 +115,31 @@ const AdminDashboard: React.FC = () => {
     };
   }, []);
 
+  // Update URL when tab changes
+  useEffect(() => {
+    if (activeTab === 'users') {
+      navigate('/admin/users', { replace: true });
+    } else if (activeTab === 'tiers') {
+      navigate('/admin/tiers', { replace: true });
+    } else if (activeTab !== 'requests' && location.pathname !== '/admin') {
+      navigate('/admin', { replace: true });
+    }
+  }, [activeTab, navigate, location.pathname]);
+
   const handleRefresh = async () => {
     setLoading(true);
     try {
       const freshStats = await dashboardService.getStats();
-      // Removed console.log // Debug log
       setStats(freshStats);
     } catch (error) {
       console.error('Error refreshing stats:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
+    setActiveTab(newValue);
   };
 
   return (
@@ -166,13 +195,15 @@ const AdminDashboard: React.FC = () => {
       <Box sx={{ mb: 3 }}>
         <Tabs
           value={activeTab}
-          onChange={(_, newValue) => setActiveTab(newValue)}
+          onChange={handleTabChange}
           sx={{ borderBottom: 1, borderColor: 'divider' }}
         >
           <Tab label="Request Management" value="requests" />
           <Tab label="Team Calendar" value="calendar" />
           <Tab label="Activity Overview" value="activity" />
           <Tab label="Article Approvals" value="articles" />
+          <Tab label="User Management" value="users" icon={<UserIcon />} iconPosition="start" />
+          <Tab label="User Tiers" value="tiers" icon={<TiersIcon />} iconPosition="start" />
         </Tabs>
       </Box>
 
@@ -181,6 +212,8 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'calendar' && <TeamCalendar />}
         {activeTab === 'activity' && <ActivityOverview />}
         {activeTab === 'articles' && <ArticleApprovalList />}
+        {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'tiers' && <UserTierManagement />}
       </Box>
 
       <style>
