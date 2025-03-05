@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Grid,
@@ -9,8 +9,11 @@ import {
   Tabs,
   Tab,
 } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import SaturdayAvailabilityApproval from './SaturdayAvailabilityApproval';
+import TeamCalendar from '../admin/TeamCalendar';
+import HolidayRequestApproval from './HolidayRequestApproval';
 
 const StyledPaper = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
@@ -45,13 +48,31 @@ function TabPanel(props: TabPanelProps) {
   );
 }
 
+// Helper function to determine the initial tab based on URL
+const getInitialTab = (pathname: string): number => {
+  if (pathname.includes('/manager/saturday')) return 0;
+  if (pathname.includes('/manager/holiday')) return 1;
+  if (pathname.includes('/manager/schedule')) return 2;
+  return 0; // Default to first tab
+};
+
 const ManagerDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [tabValue, setTabValue] = useState(0);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [tabValue, setTabValue] = useState(getInitialTab(location.pathname));
 
+  // Update URL when tab changes
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    const paths = ['/manager', '/manager/holiday', '/manager/schedule'];
+    navigate(paths[newValue]);
   };
+
+  // Update tab if URL changes externally
+  useEffect(() => {
+    setTabValue(getInitialTab(location.pathname));
+  }, [location.pathname]);
 
   return (
     <Container maxWidth="lg">
@@ -86,12 +107,7 @@ const ManagerDashboard: React.FC = () => {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <StyledPaper>
-              <Typography variant="h5" gutterBottom>
-                Holiday Requests
-              </Typography>
-              <Typography variant="body1">
-                Holiday request management will be implemented here.
-              </Typography>
+              <HolidayRequestApproval />
             </StyledPaper>
           </Grid>
         </Grid>
@@ -101,12 +117,7 @@ const ManagerDashboard: React.FC = () => {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <StyledPaper>
-              <Typography variant="h5" gutterBottom>
-                Team Schedule
-              </Typography>
-              <Typography variant="body1">
-                Team schedule management will be implemented here.
-              </Typography>
+              <TeamCalendar />
             </StyledPaper>
           </Grid>
         </Grid>

@@ -84,6 +84,22 @@ function App() {
                     </ManagerRoute>
                   }
                 />
+                <Route
+                  path="manager/holiday"
+                  element={
+                    <ManagerRoute>
+                      <ManagerDashboard />
+                    </ManagerRoute>
+                  }
+                />
+                <Route
+                  path="manager/schedule"
+                  element={
+                    <ManagerRoute>
+                      <ManagerDashboard />
+                    </ManagerRoute>
+                  }
+                />
                 
                 {/* Admin Routes */}
                 <Route
