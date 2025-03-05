@@ -22,9 +22,11 @@ App
 │                   ├── KnowledgeBase
 │                   ├── HR Routes
 │                   │   ├── HRDashboard
-│                   │   ├── EmployeeManagement
-│                   │   ├── LeaveManagement
-│                   │   └── PerformanceReviews
+│                   │   └── Admin Routes
+│                   │       ├── AdminDashboard
+│                   │       ├── RequestManagement
+│                   │       ├── UserManagement
+│                   │       └── UserTierManagement
 │                   └── Admin Routes
 │                       ├── AdminDashboard
 │                       ├── RequestManagement
@@ -124,40 +126,7 @@ Displays agent schedules.
 ### HR Components
 
 #### HRDashboard
-
-Dashboard for HR users.
-
-**Key Responsibilities:**
-- Display HR-specific metrics
-- Manage documents and payslips
-- Track holiday records and balances
-
-#### EmployeeManagement
-
-Manages employee information.
-
-**Key Responsibilities:**
-- Display employee list
-- Edit employee details
-- Handle employee onboarding/offboarding
-
-#### LeaveManagement
-
-Manages employee leave requests.
-
-**Key Responsibilities:**
-- Display leave requests
-- Approve/reject requests
-- Track leave balances
-
-#### PerformanceReviews
-
-Manages employee performance reviews.
-
-**Key Responsibilities:**
-- Schedule reviews
-- Track review progress
-- Store review results
+The main dashboard for HR users. Contains tabs for managing signed documents, payslips, contracts, and leave requests. All HR functionality is consolidated in this component.
 
 ### Admin Components
 

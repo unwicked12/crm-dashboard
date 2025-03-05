@@ -59,8 +59,6 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '../../firebase';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useAuth } from '../../contexts/AuthContext';
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import LeaveManagement from './LeaveManagement';
 
 interface SignedDocument {
   id: string;
@@ -898,7 +896,15 @@ const HRDashboard: React.FC = () => {
         </TabPanel>
 
         <TabPanel value={tabValue} index={3}>
-          <LeaveManagement />
+          <Typography variant="h6" gutterBottom>
+            Leave Management
+          </Typography>
+          <Typography paragraph>
+            This section allows HR to manage employee leave requests, approve or reject time off, 
+            and monitor holiday balances. All leave management functionality is now integrated directly 
+            into the HR Dashboard.
+          </Typography>
+          {/* Leave management functionality will be implemented directly in this component */}
         </TabPanel>
       </Paper>
 
